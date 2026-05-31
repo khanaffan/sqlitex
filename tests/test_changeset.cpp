@@ -1,0 +1,437 @@
+#include <cloudsqlite/cloudsqlite.h>
+
+#include <gtest/gtest.h>
+
+#include <string>
+
+namespace cloudsqlite {
+namespace {
+
+class ChangesetTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        db_.execute(R"(
+            CREATE TABLE items (
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                quantity INTEGER DEFAULT 0
+            )
+        )");
+        db_.execute("INSERT INTO items VALUES (1, 'Widget', 10)");
+        db_.execute("INSERT INTO items VALUES (2, 'Gadget', 5)");
+    }
+
+    Database db_{":memory:"};
+};
+
+// ============================================================================
+// Changeset construction
+// ============================================================================
+
+TEST_F(ChangesetTest, DefaultConstruction) {
+    Changeset cs;
+    EXPECT_TRUE(cs.empty());
+    EXPECT_EQ(cs.size(), 0);
+}
+
+TEST_F(ChangesetTest, MoveConstruction) {
+    Session session(db_, "main");
+    session.enable(true);
+    session.attach_all();
+    db_.execute("INSERT INTO items VALUES (3, 'Test', 1)");
+
+    Changeset cs1 = session.changeset();
+    int size = cs1.size();
+
+    Changeset cs2(std::move(cs1));
+    EXPECT_EQ(cs2.size(), size);
+    EXPECT_TRUE(cs1.empty());  // NOLINT
+    EXPECT_EQ(cs1.size(), 0);  // NOLINT
+}
+
+TEST_F(ChangesetTest, MoveAssignment) {
+    Session session(db_, "main");
+    session.enable(true);
+    session.attach_all();
+    db_.execute("INSERT INTO items VALUES (3, 'A', 1)");
+    db_.execute("INSERT INTO items VALUES (4, 'B', 2)");
+
+    Changeset cs1 = session.changeset();
+    int size1 = cs1.size();
+
+    // Second session for another changeset
+    Session s2(db_, "main");
+    s2.enable(true);
+    s2.attach_all();
+    db_.execute("DELETE FROM items WHERE id = 4");
+    Changeset cs2 = s2.changeset();
+
+    cs2 = std::move(cs1);
+    EXPECT_EQ(cs2.size(), size1);
+}
+
+// ============================================================================
+// Changeset copy_from
+// ============================================================================
+
+TEST_F(ChangesetTest, CopyFrom) {
+    Session session(db_, "main");
+    session.enable(true);
+    session.attach_all();
+    db_.execute("INSERT INTO items VALUES (3, 'Test', 1)");
+
+    Changeset cs1 = session.changeset();
+    Changeset cs2 = Changeset::copy_from(cs1.data(), cs1.size());
+
+    EXPECT_EQ(cs1.size(), cs2.size());
+    EXPECT_NE(cs1.data(), cs2.data());  // Different pointers
+}
+
+// ============================================================================
+// Iterator — basic iteration
+// ============================================================================
+
+TEST_F(ChangesetTest, IterateInsert) {
+    Session session(db_, "main");
+    session.enable(true);
+    session.attach_all();
+    db_.execute("INSERT INTO items VALUES (3, 'Doodad', 25)");
+
+    Changeset cs = session.changeset();
+    auto iter = cs.begin();
+
+    ASSERT_TRUE(iter.next());
+    EXPECT_EQ(iter.op(), ChangeOperation::Insert);
+    EXPECT_EQ(iter.table_name(), "items");
+    EXPECT_EQ(iter.column_count(), 3);
+    EXPECT_FALSE(iter.next());
+}
+
+TEST_F(ChangesetTest, IterateUpdate) {
+    Session session(db_, "main");
+    session.enable(true);
+    session.attach_all();
+    db_.execute("UPDATE items SET quantity = 99 WHERE id = 1");
+
+    Changeset cs = session.changeset();
+    auto iter = cs.begin();
+
+    ASSERT_TRUE(iter.next());
+    EXPECT_EQ(iter.op(), ChangeOperation::Update);
+    EXPECT_EQ(iter.table_name(), "items");
+    EXPECT_FALSE(iter.next());
+}
+
+TEST_F(ChangesetTest, IterateDelete) {
+    Session session(db_, "main");
+    session.enable(true);
+    session.attach_all();
+    db_.execute("DELETE FROM items WHERE id = 2");
+
+    Changeset cs = session.changeset();
+    auto iter = cs.begin();
+
+    ASSERT_TRUE(iter.next());
+    EXPECT_EQ(iter.op(), ChangeOperation::Delete);
+    EXPECT_FALSE(iter.next());
+}
+
+// ============================================================================
+// Iterator — value access
+// ============================================================================
+
+TEST_F(ChangesetTest, InsertNewValues) {
+    Session session(db_, "main");
+    session.enable(true);
+    session.attach_all();
+    db_.execute("INSERT INTO items VALUES (3, 'Doodad', 25)");
+
+    Changeset cs = session.changeset();
+    auto iter = cs.begin();
+    ASSERT_TRUE(iter.next());
+
+    // Old values should not be available for INSERT
+    EXPECT_TRUE(iter.old_is_null(0));
+
+    // New values should be available
+    EXPECT_EQ(iter.new_int(0).value_or(-1), 3);
+    EXPECT_EQ(iter.new_text(1).value_or(""), "Doodad");
+    EXPECT_EQ(iter.new_int(2).value_or(-1), 25);
+}
+
+TEST_F(ChangesetTest, DeleteOldValues) {
+    Session session(db_, "main");
+    session.enable(true);
+    session.attach_all();
+    db_.execute("DELETE FROM items WHERE id = 2");
+
+    Changeset cs = session.changeset();
+    auto iter = cs.begin();
+    ASSERT_TRUE(iter.next());
+    EXPECT_EQ(iter.op(), ChangeOperation::Delete);
+
+    // Old values should be available for DELETE
+    EXPECT_EQ(iter.old_int(0).value_or(-1), 2);
+    EXPECT_EQ(iter.old_text(1).value_or(""), "Gadget");
+}
+
+TEST_F(ChangesetTest, UpdateBothValues) {
+    Session session(db_, "main");
+    session.enable(true);
+    session.attach_all();
+    db_.execute("UPDATE items SET quantity = 99 WHERE id = 1");
+
+    Changeset cs = session.changeset();
+    auto iter = cs.begin();
+    ASSERT_TRUE(iter.next());
+    EXPECT_EQ(iter.op(), ChangeOperation::Update);
+
+    // PK old value is always available for UPDATE
+    EXPECT_EQ(iter.old_int(0).value_or(-1), 1);
+
+    // Modified column: old = 10, new = 99
+    EXPECT_EQ(iter.old_int(2).value_or(-1), 10);
+    EXPECT_EQ(iter.new_int(2).value_or(-1), 99);
+}
+
+TEST_F(ChangesetTest, PrimaryKey) {
+    Session session(db_, "main");
+    session.enable(true);
+    session.attach_all();
+    db_.execute("INSERT INTO items VALUES (3, 'Test', 1)");
+
+    Changeset cs = session.changeset();
+    auto iter = cs.begin();
+    ASSERT_TRUE(iter.next());
+
+    auto pk = iter.primary_key();
+    ASSERT_EQ(pk.size(), 3u);
+    EXPECT_TRUE(pk[0]);   // id is PK
+    EXPECT_FALSE(pk[1]);  // name is not PK
+    EXPECT_FALSE(pk[2]);  // quantity is not PK
+}
+
+TEST_F(ChangesetTest, IsIndirect) {
+    Session session(db_, "main");
+    session.enable(true);
+    session.attach_all();
+
+    // Direct change
+    db_.execute("INSERT INTO items VALUES (3, 'Test', 1)");
+    {
+        Changeset cs = session.changeset();
+    auto iter = cs.begin();
+        ASSERT_TRUE(iter.next());
+        EXPECT_FALSE(iter.is_indirect());
+    }
+}
+
+// ============================================================================
+// Iterator — multiple changes
+// ============================================================================
+
+TEST_F(ChangesetTest, MultipleChangesInOrder) {
+    Session session(db_, "main");
+    session.enable(true);
+    session.attach_all();
+
+    db_.execute("INSERT INTO items VALUES (3, 'A', 1)");
+    db_.execute("INSERT INTO items VALUES (4, 'B', 2)");
+    db_.execute("INSERT INTO items VALUES (5, 'C', 3)");
+
+    Changeset cs = session.changeset();
+    auto iter = cs.begin();
+    int count = 0;
+    while (iter.next()) {
+        EXPECT_EQ(iter.op(), ChangeOperation::Insert);
+        count++;
+    }
+    EXPECT_EQ(count, 3);
+}
+
+TEST_F(ChangesetTest, EmptyChangesetIteration) {
+    Session session(db_, "main");
+    session.enable(true);
+    session.attach_all();
+
+    Changeset cs = session.changeset();
+    auto iter = cs.begin();
+    EXPECT_FALSE(iter.next());
+}
+
+// ============================================================================
+// Changeset concat
+// ============================================================================
+
+TEST_F(ChangesetTest, ConcatTwoChangesets) {
+    Session s1(db_, "main");
+    s1.enable(true);
+    s1.attach_all();
+    db_.execute("INSERT INTO items VALUES (3, 'A', 1)");
+    Changeset cs1 = s1.changeset();
+
+    Session s2(db_, "main");
+    s2.enable(true);
+    s2.attach_all();
+    db_.execute("INSERT INTO items VALUES (4, 'B', 2)");
+    Changeset cs2 = s2.changeset();
+
+    Changeset merged = cs1.concat(cs2);
+    EXPECT_GT(merged.size(), std::max(cs1.size(), cs2.size()));
+
+    auto iter = merged.begin();
+    int count = 0;
+    while (iter.next()) count++;
+    EXPECT_EQ(count, 2);
+}
+
+// ============================================================================
+// Changeset invert
+// ============================================================================
+
+TEST_F(ChangesetTest, InvertInsert) {
+    Session session(db_, "main");
+    session.enable(true);
+    session.attach_all();
+    db_.execute("INSERT INTO items VALUES (3, 'Test', 1)");
+
+    Changeset cs = session.changeset();
+    Changeset undo = cs.invert();
+    EXPECT_GT(undo.size(), 0);
+
+    // Applying the inverted changeset should undo the insert
+    undo.apply(db_,
+        [](ConflictType, const ChangesetIterator&) {
+            return ChangesetAction::Abort;
+        });
+
+    auto count = db_.query_value<int64_t>("SELECT COUNT(*) FROM items");
+    EXPECT_EQ(*count, 2);  // Back to original 2 rows
+}
+
+TEST_F(ChangesetTest, InvertUpdate) {
+    Session session(db_, "main");
+    session.enable(true);
+    session.attach_all();
+    db_.execute("UPDATE items SET quantity = 99 WHERE id = 1");
+
+    Changeset cs = session.changeset();
+    Changeset undo = cs.invert();
+
+    undo.apply(db_,
+        [](ConflictType, const ChangesetIterator&) {
+            return ChangesetAction::Abort;
+        });
+
+    auto qty = db_.query_value<int64_t>(
+        "SELECT quantity FROM items WHERE id = 1");
+    EXPECT_EQ(*qty, 10);  // Back to original
+}
+
+// ============================================================================
+// Changeset apply with conflict handler
+// ============================================================================
+
+TEST_F(ChangesetTest, ApplyToReplica) {
+    // Create a replica DB with the same schema
+    Database replica(":memory:");
+    replica.execute("CREATE TABLE items (id INTEGER PRIMARY KEY, "
+                    "name TEXT, quantity INTEGER)");
+    replica.execute("INSERT INTO items VALUES (1, 'Widget', 10)");
+
+    // Make changes on source
+    Session session(db_, "main");
+    session.enable(true);
+    session.attach_all();
+    db_.execute("INSERT INTO items VALUES (3, 'New', 50)");
+    db_.execute("UPDATE items SET quantity = 100 WHERE id = 1");
+
+    Changeset cs = session.changeset();
+
+    int conflict_count = 0;
+    cs.apply(replica,
+        [&](ConflictType type, const ChangesetIterator& it) {
+            conflict_count++;
+            (void)type; (void)it;
+            return ChangesetAction::Replace;
+        });
+
+    // replica should now have rows 1, 3
+    auto rows = replica.query("SELECT * FROM items ORDER BY id");
+    ASSERT_EQ(rows.size(), 2u);
+    EXPECT_EQ(rows[0][0].as_int64(), 1);
+    EXPECT_EQ(rows[0][2].as_int64(), 100);  // Updated
+    EXPECT_EQ(rows[1][0].as_int64(), 3);     // Inserted
+}
+
+TEST_F(ChangesetTest, ApplyOmitConflict) {
+    Database target(":memory:");
+    target.execute("CREATE TABLE items (id INTEGER PRIMARY KEY,"
+                   " name TEXT, quantity INTEGER)");
+    // Insert a different row — no PK conflict with what we'll apply
+    target.execute("INSERT INTO items VALUES (999, 'Existing', 999)");
+
+    Session session(db_, "main");
+    session.enable(true);
+    session.attach_all();
+    // Modify source row: original name is 'Widget', change to 'Renamed'
+    db_.execute("UPDATE items SET name = 'Renamed' WHERE id = 1");
+
+    Changeset cs = session.changeset();
+
+    // Apply with conflict handler that omits on DATA mismatch
+    cs.apply(target,
+        [](ConflictType type, const ChangesetIterator&) {
+            if (type == ConflictType::NotFound) {
+                return ChangesetAction::Omit;  // Target doesn't have this row
+            }
+            return ChangesetAction::Abort;
+        });
+
+    // Row was not found in target, so it was omitted
+    auto count = target.query_value<int64_t>("SELECT COUNT(*) FROM items");
+    EXPECT_EQ(*count, 1);  // Still just the existing row
+}
+
+// ============================================================================
+// Patchset
+// ============================================================================
+
+TEST_F(ChangesetTest, PatchsetExtraction) {
+    Session session(db_, "main");
+    session.enable(true);
+    session.attach_all();
+    db_.execute("INSERT INTO items VALUES (3, 'PatchTest', 50)");
+
+    Patchset ps = session.patchset();
+    EXPECT_FALSE(ps.empty());
+    EXPECT_GT(ps.size(), 0);
+
+    // Patchset can be iterated
+    auto iter = ps.begin();
+    ASSERT_TRUE(iter.next());
+    EXPECT_EQ(iter.op(), ChangeOperation::Insert);
+}
+
+TEST_F(ChangesetTest, PatchsetApply) {
+    Database target(":memory:");
+    target.execute("CREATE TABLE items (id INTEGER PRIMARY KEY,"
+                   " name TEXT, quantity INTEGER)");
+
+    Session session(db_, "main");
+    session.enable(true);
+    session.attach_all();
+    db_.execute("INSERT INTO items VALUES (3, 'ViaPatch', 50)");
+
+    Patchset ps = session.patchset();
+    ps.apply(target,
+        [](ConflictType, const ChangesetIterator&) {
+            return ChangesetAction::Abort;
+        });
+
+    auto count = target.query_value<int64_t>("SELECT COUNT(*) FROM items");
+    EXPECT_EQ(*count, 1);
+}
+
+}  // anonymous namespace
+}  // namespace cloudsqlite

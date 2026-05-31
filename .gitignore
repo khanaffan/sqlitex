@@ -1,0 +1,58 @@
+# Build directories
+build/
+cmake-build-*/
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Compiled objects
+*.o
+*.obj
+*.a
+*.dylib
+*.so
+*.dll
+
+# Test artifacts
+Testing/
+CTestTestfile.cmake
+*.tbd
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+!CMakeLists.txt
+*.cmake
+!cmake/
+
+# Package files
+*.deb
+*.rpm
+*.tar.gz
+
+# Temp files
+/tmp/
+*.tmp
+
+# Core dumps
+core
+core.*
+
+# clangd cache
+.clangd/
+.cache/
+
+# Compiled examples and tests
+examples/basic_usage
+examples/session_tracking
+examples/changeset_apply
+examples/changegroup_merge
+examples/bcvfs_basic
+tests/cloudsqlite_tests
