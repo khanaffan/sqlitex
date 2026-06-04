@@ -1,14 +1,16 @@
-#include <cloudsqlite/cloudsqlite.h>
+#include <sqlitex/sqlitex.h>
 
 #include <gtest/gtest.h>
 
+#include <cstring>
+#include <sstream>
 #include <string>
 
-namespace cloudsqlite {
+namespace sqlitex {
 namespace {
 
 class ChangesetTest : public ::testing::Test {
-protected:
+    protected:
     void SetUp() override {
         db_.execute(R"(
             CREATE TABLE items (
@@ -45,8 +47,8 @@ TEST_F(ChangesetTest, MoveConstruction) {
 
     Changeset cs2(std::move(cs1));
     EXPECT_EQ(cs2.size(), size);
-    EXPECT_TRUE(cs1.empty());  // NOLINT
-    EXPECT_EQ(cs1.size(), 0);  // NOLINT
+    EXPECT_TRUE(cs1.empty()); // NOLINT
+    EXPECT_EQ(cs1.size(), 0); // NOLINT
 }
 
 TEST_F(ChangesetTest, MoveAssignment) {
@@ -84,7 +86,7 @@ TEST_F(ChangesetTest, CopyFrom) {
     Changeset cs2 = Changeset::copy_from(cs1.data(), cs1.size());
 
     EXPECT_EQ(cs1.size(), cs2.size());
-    EXPECT_NE(cs1.data(), cs2.data());  // Different pointers
+    EXPECT_NE(cs1.data(), cs2.data()); // Different pointers
 }
 
 // ============================================================================
@@ -206,9 +208,9 @@ TEST_F(ChangesetTest, PrimaryKey) {
 
     auto pk = iter.primary_key();
     ASSERT_EQ(pk.size(), 3u);
-    EXPECT_TRUE(pk[0]);   // id is PK
-    EXPECT_FALSE(pk[1]);  // name is not PK
-    EXPECT_FALSE(pk[2]);  // quantity is not PK
+    EXPECT_TRUE(pk[0]);  // id is PK
+    EXPECT_FALSE(pk[1]); // name is not PK
+    EXPECT_FALSE(pk[2]); // quantity is not PK
 }
 
 TEST_F(ChangesetTest, IsIndirect) {
@@ -220,7 +222,7 @@ TEST_F(ChangesetTest, IsIndirect) {
     db_.execute("INSERT INTO items VALUES (3, 'Test', 1)");
     {
         Changeset cs = session.changeset();
-    auto iter = cs.begin();
+        auto iter = cs.begin();
         ASSERT_TRUE(iter.next());
         EXPECT_FALSE(iter.is_indirect());
     }
@@ -281,7 +283,8 @@ TEST_F(ChangesetTest, ConcatTwoChangesets) {
 
     auto iter = merged.begin();
     int count = 0;
-    while (iter.next()) count++;
+    while (iter.next())
+        count++;
     EXPECT_EQ(count, 2);
 }
 
@@ -300,13 +303,12 @@ TEST_F(ChangesetTest, InvertInsert) {
     EXPECT_GT(undo.size(), 0);
 
     // Applying the inverted changeset should undo the insert
-    undo.apply(db_,
-        [](ConflictType, const ChangesetIterator&) {
-            return ChangesetAction::Abort;
-        });
+    undo.apply(db_, [](ConflictType, const ChangesetIterator&) {
+        return ChangesetAction::Abort;
+    });
 
     auto count = db_.query_value<int64_t>("SELECT COUNT(*) FROM items");
-    EXPECT_EQ(*count, 2);  // Back to original 2 rows
+    EXPECT_EQ(*count, 2); // Back to original 2 rows
 }
 
 TEST_F(ChangesetTest, InvertUpdate) {
@@ -318,14 +320,13 @@ TEST_F(ChangesetTest, InvertUpdate) {
     Changeset cs = session.changeset();
     Changeset undo = cs.invert();
 
-    undo.apply(db_,
-        [](ConflictType, const ChangesetIterator&) {
-            return ChangesetAction::Abort;
-        });
+    undo.apply(db_, [](ConflictType, const ChangesetIterator&) {
+        return ChangesetAction::Abort;
+    });
 
-    auto qty = db_.query_value<int64_t>(
-        "SELECT quantity FROM items WHERE id = 1");
-    EXPECT_EQ(*qty, 10);  // Back to original
+    auto qty =
+        db_.query_value<int64_t>("SELECT quantity FROM items WHERE id = 1");
+    EXPECT_EQ(*qty, 10); // Back to original
 }
 
 // ============================================================================
@@ -335,8 +336,9 @@ TEST_F(ChangesetTest, InvertUpdate) {
 TEST_F(ChangesetTest, ApplyToReplica) {
     // Create a replica DB with the same schema
     Database replica(":memory:");
-    replica.execute("CREATE TABLE items (id INTEGER PRIMARY KEY, "
-                    "name TEXT, quantity INTEGER)");
+    replica.execute(
+        "CREATE TABLE items (id INTEGER PRIMARY KEY, "
+        "name TEXT, quantity INTEGER)");
     replica.execute("INSERT INTO items VALUES (1, 'Widget', 10)");
 
     // Make changes on source
@@ -349,25 +351,26 @@ TEST_F(ChangesetTest, ApplyToReplica) {
     Changeset cs = session.changeset();
 
     int conflict_count = 0;
-    cs.apply(replica,
-        [&](ConflictType type, const ChangesetIterator& it) {
-            conflict_count++;
-            (void)type; (void)it;
-            return ChangesetAction::Replace;
-        });
+    cs.apply(replica, [&](ConflictType type, const ChangesetIterator& it) {
+        conflict_count++;
+        (void)type;
+        (void)it;
+        return ChangesetAction::Replace;
+    });
 
     // replica should now have rows 1, 3
     auto rows = replica.query("SELECT * FROM items ORDER BY id");
     ASSERT_EQ(rows.size(), 2u);
     EXPECT_EQ(rows[0][0].as_int64(), 1);
-    EXPECT_EQ(rows[0][2].as_int64(), 100);  // Updated
-    EXPECT_EQ(rows[1][0].as_int64(), 3);     // Inserted
+    EXPECT_EQ(rows[0][2].as_int64(), 100); // Updated
+    EXPECT_EQ(rows[1][0].as_int64(), 3);   // Inserted
 }
 
 TEST_F(ChangesetTest, ApplyOmitConflict) {
     Database target(":memory:");
-    target.execute("CREATE TABLE items (id INTEGER PRIMARY KEY,"
-                   " name TEXT, quantity INTEGER)");
+    target.execute(
+        "CREATE TABLE items (id INTEGER PRIMARY KEY,"
+        " name TEXT, quantity INTEGER)");
     // Insert a different row — no PK conflict with what we'll apply
     target.execute("INSERT INTO items VALUES (999, 'Existing', 999)");
 
@@ -380,17 +383,16 @@ TEST_F(ChangesetTest, ApplyOmitConflict) {
     Changeset cs = session.changeset();
 
     // Apply with conflict handler that omits on DATA mismatch
-    cs.apply(target,
-        [](ConflictType type, const ChangesetIterator&) {
-            if (type == ConflictType::NotFound) {
-                return ChangesetAction::Omit;  // Target doesn't have this row
-            }
-            return ChangesetAction::Abort;
-        });
+    cs.apply(target, [](ConflictType type, const ChangesetIterator&) {
+        if (type == ConflictType::NotFound) {
+            return ChangesetAction::Omit; // Target doesn't have this row
+        }
+        return ChangesetAction::Abort;
+    });
 
     // Row was not found in target, so it was omitted
     auto count = target.query_value<int64_t>("SELECT COUNT(*) FROM items");
-    EXPECT_EQ(*count, 1);  // Still just the existing row
+    EXPECT_EQ(*count, 1); // Still just the existing row
 }
 
 // ============================================================================
@@ -415,8 +417,9 @@ TEST_F(ChangesetTest, PatchsetExtraction) {
 
 TEST_F(ChangesetTest, PatchsetApply) {
     Database target(":memory:");
-    target.execute("CREATE TABLE items (id INTEGER PRIMARY KEY,"
-                   " name TEXT, quantity INTEGER)");
+    target.execute(
+        "CREATE TABLE items (id INTEGER PRIMARY KEY,"
+        " name TEXT, quantity INTEGER)");
 
     Session session(db_, "main");
     session.enable(true);
@@ -424,7 +427,36 @@ TEST_F(ChangesetTest, PatchsetApply) {
     db_.execute("INSERT INTO items VALUES (3, 'ViaPatch', 50)");
 
     Patchset ps = session.patchset();
-    ps.apply(target,
+    ps.apply(target, [](ConflictType, const ChangesetIterator&) {
+        return ChangesetAction::Abort;
+    });
+
+    auto count = target.query_value<int64_t>("SELECT COUNT(*) FROM items");
+    EXPECT_EQ(*count, 1);
+}
+
+// ============================================================================
+// Streaming API
+// ============================================================================
+
+TEST_F(ChangesetTest, ApplyStream) {
+    Database target(":memory:");
+    target.execute(
+        "CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT, quantity "
+        "INTEGER)");
+
+    Session session(db_, "main");
+    session.enable(true);
+    session.attach_all();
+    db_.execute("INSERT INTO items VALUES (3, 'StreamApply', 50)");
+
+    Changeset cs = session.changeset();
+
+    // Wrap changeset data as a stream input
+    StreamInputFunc input = make_stream_input(cs.data(), cs.size());
+
+    Changeset::apply_stream(
+        target, std::move(input),
         [](ConflictType, const ChangesetIterator&) {
             return ChangesetAction::Abort;
         });
@@ -433,5 +465,113 @@ TEST_F(ChangesetTest, PatchsetApply) {
     EXPECT_EQ(*count, 1);
 }
 
-}  // anonymous namespace
-}  // namespace cloudsqlite
+TEST_F(ChangesetTest, ApplyStreamV2WithFlags) {
+    Database target(":memory:");
+    target.execute(
+        "CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT, quantity "
+        "INTEGER)");
+    target.execute("INSERT INTO items VALUES (1, 'Existing', 999)");
+
+    Session session(db_, "main");
+    session.enable(true);
+    session.attach_all();
+    db_.execute("UPDATE items SET quantity = 100 WHERE id = 1");
+
+    Changeset cs = session.changeset();
+    auto input = make_stream_input(cs.data(), cs.size());
+
+    Changeset::apply_v2_stream(
+        target, std::move(input),
+        [](ConflictType, const ChangesetIterator&) {
+            return ChangesetAction::Replace;
+        },
+        0);
+
+    auto qty =
+        target.query_value<int64_t>("SELECT quantity FROM items WHERE id = 1");
+    EXPECT_EQ(*qty, 100);
+}
+
+TEST_F(ChangesetTest, ConcatStream) {
+    Session session(db_, "main");
+    session.enable(true);
+    session.attach_all();
+    db_.execute("INSERT INTO items VALUES (3, 'A', 1)");
+    Changeset cs1 = session.changeset();
+    db_.execute("INSERT INTO items VALUES (4, 'B', 2)");
+    Changeset cs2 = session.changeset();
+
+    auto input_a = make_stream_input(cs1.data(), cs1.size());
+    auto input_b = make_stream_input(cs2.data(), cs2.size());
+
+    std::vector<uint8_t> out;
+    StreamOutputFunc output = [&](const void* data, int size) -> int {
+        auto* bytes = static_cast<const uint8_t*>(data);
+        out.insert(out.end(), bytes, bytes + size);
+        return 0;
+    };
+
+    Changeset::concat_stream(std::move(input_a), std::move(input_b), output);
+
+    // Create a non-owning changeset from the concatenated output and verify
+    auto* merged_data = sqlite3_malloc(out.size());
+    std::memcpy(merged_data, out.data(), out.size());
+    Changeset merged(merged_data, static_cast<int>(out.size()));
+    auto iter = merged.begin();
+    int count = 0;
+    while (iter.next()) {
+        count++;
+    }
+    EXPECT_EQ(count, 2);
+}
+
+TEST_F(ChangesetTest, InvertStream) {
+    Session session(db_, "main");
+    session.enable(true);
+    session.attach_all();
+    db_.execute("INSERT INTO items VALUES (3, 'InvertStream', 50)");
+
+    Changeset cs = session.changeset();
+    auto input = make_stream_input(cs.data(), cs.size());
+
+    std::vector<uint8_t> out;
+    StreamOutputFunc output = [&](const void* data, int size) -> int {
+        auto* bytes = static_cast<const uint8_t*>(data);
+        out.insert(out.end(), bytes, bytes + size);
+        return 0;
+    };
+
+    Changeset::invert_stream(std::move(input), output);
+    EXPECT_FALSE(out.empty());
+
+    // The inverted stream should produce a valid changeset that undoes the
+    // insert
+    auto* inv_data = sqlite3_malloc(out.size());
+    std::memcpy(inv_data, out.data(), out.size());
+    Changeset inverted(inv_data, static_cast<int>(out.size()));
+
+    inverted.apply(db_, [](ConflictType, const ChangesetIterator&) {
+        return ChangesetAction::Abort;
+    });
+    auto count = db_.query_value<int64_t>("SELECT COUNT(*) FROM items");
+    EXPECT_EQ(*count, 2);
+}
+
+TEST_F(ChangesetTest, IteratorFromStream) {
+    Session session(db_, "main");
+    session.enable(true);
+    session.attach_all();
+    db_.execute("INSERT INTO items VALUES (3, 'StreamIter', 50)");
+
+    Changeset cs = session.changeset();
+    auto input = make_stream_input(cs.data(), cs.size());
+
+    auto iter = ChangesetIterator::from_stream(std::move(input));
+    ASSERT_TRUE(iter.next());
+    EXPECT_EQ(iter.op(), ChangeOperation::Insert);
+    EXPECT_EQ(iter.table_name(), "items");
+    EXPECT_FALSE(iter.next());
+}
+
+} // anonymous namespace
+} // namespace sqlitex

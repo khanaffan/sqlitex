@@ -55,4 +55,5 @@ examples/session_tracking
 examples/changeset_apply
 examples/changegroup_merge
 examples/bcvfs_basic
-tests/cloudsqlite_tests
+tests/sqlitex_tests
+src/blockcachevfsd

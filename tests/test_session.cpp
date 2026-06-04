@@ -1,12 +1,14 @@
-#include <cloudsqlite/cloudsqlite.h>
+#include <sqlitex/sqlitex.h>
 
 #include <gtest/gtest.h>
 
-namespace cloudsqlite {
+#include <sstream>
+
+namespace sqlitex {
 namespace {
 
 class SessionTest : public ::testing::Test {
-protected:
+    protected:
     void SetUp() override {
         db_.execute(R"(
             CREATE TABLE items (
@@ -38,7 +40,7 @@ TEST_F(SessionTest, MoveConstruction) {
 
     Session s2(std::move(s1));
     EXPECT_TRUE(s2);
-    EXPECT_FALSE(s1);  // NOLINT
+    EXPECT_FALSE(s1); // NOLINT
 }
 
 TEST_F(SessionTest, MoveAssignment) {
@@ -46,7 +48,7 @@ TEST_F(SessionTest, MoveAssignment) {
     Session s2(db_, "main");
     s2 = std::move(s1);
     EXPECT_TRUE(s2);
-    EXPECT_FALSE(s1);  // NOLINT
+    EXPECT_FALSE(s1); // NOLINT
 }
 
 // ============================================================================
@@ -56,7 +58,7 @@ TEST_F(SessionTest, MoveAssignment) {
 TEST_F(SessionTest, EnableDisable) {
     Session session(db_, "main");
     session.attach_all();
-    session.enable(true);  // Must explicitly enable
+    session.enable(true); // Must explicitly enable
 
     // After enabling, changes should be tracked
     db_.execute("INSERT INTO items VALUES (10, 'test', 1)");
@@ -240,9 +242,8 @@ TEST_F(SessionTest, MemoryUsed) {
 TEST_F(SessionTest, TableFilterInclude) {
     Session session(db_, "main");
     session.enable(true);
-    session.set_table_filter([](std::string_view table) {
-        return table == "items";
-    });
+    session.set_table_filter(
+        [](std::string_view table) { return table == "items"; });
 
     db_.execute("CREATE TABLE other (x INTEGER)");
     db_.execute("INSERT INTO other VALUES (1)");
@@ -255,7 +256,7 @@ TEST_F(SessionTest, TableFilterExclude) {
     Session session(db_, "main");
     session.enable(true);
     session.set_table_filter([](std::string_view table) {
-        return table != "items";  // exclude items
+        return table != "items"; // exclude items
     });
 
     db_.execute("UPDATE items SET quantity = 50 WHERE id = 1");
@@ -281,5 +282,72 @@ TEST_F(SessionTest, SessionOnNamedDatabase) {
     EXPECT_FALSE(cs.empty());
 }
 
-}  // anonymous namespace
-}  // namespace cloudsqlite
+// ============================================================================
+// Streaming changeset/patchset
+// ============================================================================
+
+TEST_F(SessionTest, ChangesetStreamToVector) {
+    Session session(db_, "main");
+    session.enable(true);
+    session.attach_all();
+    db_.execute("INSERT INTO items VALUES (3, 'StreamTest', 50)");
+
+    std::vector<uint8_t> collected;
+    StreamOutputFunc output = [&](const void* data, int size) -> int {
+        auto* bytes = static_cast<const uint8_t*>(data);
+        collected.insert(collected.end(), bytes, bytes + size);
+        return 0;
+    };
+
+    session.changeset_stream(output);
+    EXPECT_FALSE(collected.empty());
+
+    // Compare with in-memory version
+    Changeset cs = session.changeset();
+    ASSERT_EQ(collected.size(), static_cast<std::size_t>(cs.size()));
+    EXPECT_EQ(std::memcmp(collected.data(), cs.data(), cs.size()), 0);
+}
+
+TEST_F(SessionTest, PatchsetStreamToVector) {
+    Session session(db_, "main");
+    session.enable(true);
+    session.attach_all();
+    db_.execute("INSERT INTO items VALUES (3, 'PatchStream', 50)");
+
+    std::vector<uint8_t> collected;
+    StreamOutputFunc output = [&](const void* data, int size) -> int {
+        auto* bytes = static_cast<const uint8_t*>(data);
+        collected.insert(collected.end(), bytes, bytes + size);
+        return 0;
+    };
+
+    session.patchset_stream(output);
+    EXPECT_FALSE(collected.empty());
+}
+
+TEST_F(SessionTest, ChangesetStreamToOStream) {
+    Session session(db_, "main");
+    session.enable(true);
+    session.attach_all();
+    db_.execute("INSERT INTO items VALUES (3, 'OStream', 50)");
+
+    std::ostringstream oss;
+    session.changeset_to_stream(oss);
+    EXPECT_FALSE(oss.str().empty());
+}
+
+TEST_F(SessionTest, ChangesetStreamCallbackError) {
+    Session session(db_, "main");
+    session.enable(true);
+    session.attach_all();
+    db_.execute("INSERT INTO items VALUES (3, 'ErrTest', 50)");
+
+    StreamOutputFunc error_output = [](const void*, int) -> int {
+        return 1; // Signal error
+    };
+
+    EXPECT_THROW(session.changeset_stream(error_output), Error);
+}
+
+} // anonymous namespace
+} // namespace sqlitex

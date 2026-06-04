@@ -1,11 +1,11 @@
-#include <cloudsqlite/cloudsqlite.h>
+#include <sqlitex/sqlitex.h>
 
 #include <gtest/gtest.h>
 
 #include <cstdint>
 #include <vector>
 
-namespace cloudsqlite {
+namespace sqlitex {
 namespace {
 
 // ============================================================================
@@ -154,5 +154,5 @@ TEST(ValueTest, NegativeInt64) {
     EXPECT_EQ(v.get_int(), -1);
 }
 
-}  // anonymous namespace
-}  // namespace cloudsqlite
+} // anonymous namespace
+} // namespace sqlitex

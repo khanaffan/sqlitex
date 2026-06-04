@@ -1,27 +1,28 @@
-# CloudSQLite — C++ Wrapper for SQLite with bcvfs & Session Extension
+# Sqlitex — C++ Wrapper for SQLite with bcVFS & Session Extension
 
 A modern C++17 RAII wrapper for SQLite, including:
 
 - **Core SQLite** — `Database`, `Statement`, and `Value` classes
 - **Cloud Backed SQLite (bcvfs)** — Block Cache Virtual File System for cloud storage
 - **Session Extension** — Changeset capture, iteration, application, and merging
+- **Streaming API** — Callback-based streaming for large changesets
 
 ## Requirements
 
 - **C++17** compiler (Clang 7+, GCC 8+, MSVC 2019+)
 - **CMake** 3.15+
-- **SQLite** 3.17.0+ with `SQLITE_ENABLE_SESSION` and `SQLITE_ENABLE_PREUPDATE_HOOK`
-  - Homebrew: `brew install sqlite` (session extension is enabled)
-  - Ubuntu/Debian: `apt install libsqlite3-dev` (check for session support)
-- **bcvfs** (optional): `blockcachevfs.h` and `blockcachevfs.c` from the [SQLite source tree](https://sqlite.org/cloudsqlite/doc/trunk/src/)
+- **curl** and **OpenSSL** (required for bcVFS support)
+
+SQLite3 is bundled as source (amalgamation) and compiled as part of the library.
+No external SQLite installation is needed. Session extension support is always enabled.
 
 ## Quick Start
 
 ```cpp
-#include <cloudsqlite/cloudsqlite.h>
+#include <sqlitex/sqlitex.h>
 
 int main() {
-    cloudsqlite::Database db(":memory:");
+    sqlitex::Database db(":memory:");
 
     db.execute("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)");
 
@@ -30,7 +31,6 @@ int main() {
     stmt.execute();
 
     for (const auto& row : db.query("SELECT * FROM users")) {
-        // row[0] is id, row[1] is name
         std::cout << row[1].as_text() << '\n';
     }
 }
@@ -38,39 +38,102 @@ int main() {
 
 ## Building
 
+### macOS
+
 ```bash
-mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-make -j$(nproc)
+# Install dependencies for bcVFS (optional)
+brew install curl openssl
+
+# Build
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build
 ```
 
-### With bcvfs support
-
-Download `blockcachevfs.h` and `blockcachevfs.c` from the SQLite source tree and place them in `src/`:
+### Linux (Ubuntu/Debian)
 
 ```bash
-cp blockcachevfs.h blockcachevfs.c src/
-mkdir build && cd build
-cmake .. -DCLOUDSQLITE_BCVFS=ON
-make -j$(nproc)
+# Install dependencies for bcVFS (optional)
+sudo apt-get install libcurl4-openssl-dev libssl-dev
+
+# Build
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build
 ```
 
-Or set the source directory:
+### Windows
 
 ```bash
-cmake .. -DCLOUDSQLITE_BCVFS_SOURCE_DIR=/path/to/sqlite/ext/bcvfs
+# Install curl and OpenSSL via vcpkg
+# vcpkg install curl openssl
+
+# Build
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release
+```
+
+### Build Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `SQLITEX_SESSION` | `ON` | Build with session/changeset support |
+| `SQLITEX_BCVFS` | `ON` | Build with Block Cache VFS support |
+| `SQLITEX_BUILD_TESTS` | `ON` | Build test suite (fetches Google Test) |
+| `SQLITEX_BUILD_EXAMPLES` | `ON` | Build example programs |
+| `SQLITEX_LINT` | `OFF` | Enable clang-tidy static analysis |
+| `BUILD_SHARED_LIBS` | `OFF` | Build as shared library (DLL on Windows) |
+
+### With bcVFS support
+
+bcVFS source files are bundled in `third_party/bcvfs/` (fetched from the
+[SQLite CloudSQLite repository](https://sqlite.org/cloudsqlite/)). They are
+found automatically. To override:
+
+```bash
+cmake .. -DSQLITEX_BCVFS_SOURCE_DIR=/path/to/bcvfs/sources
+```
+
+To disable bcVFS:
+
+```bash
+cmake .. -DSQLITEX_BCVFS=OFF
+```
+
+### Without session extension
+
+```bash
+cmake .. -DSQLITEX_SESSION=OFF
 ```
 
 ### Running examples
 
 ```bash
-cmake .. -DCLOUDSQLITE_BUILD_EXAMPLES=ON
-make -j$(nproc)
+cmake .. -DSQLITEX_BUILD_EXAMPLES=ON
+cmake --build build
 
-./examples/basic_usage
-./examples/session_tracking
-./examples/changeset_apply
-./examples/changegroup_merge
+./build/examples/basic_usage
+./build/examples/session_tracking
+./build/examples/changeset_apply
+./build/examples/changegroup_merge
+```
+
+### Running tests
+
+```bash
+cmake .. -DSQLITEX_BUILD_TESTS=ON
+cmake --build build
+ctest --test-dir build
+```
+
+## Project Structure
+
+```
+include/sqlitex/     Public headers
+src/                 C++ library source
+third_party/
+  sqlite3/           SQLite amalgamation (3.53.1)
+  bcvfs/             bcVFS C sources (from upstream)
+tests/               Google Test suite
+examples/            Example programs
 ```
 
 ## API Overview
@@ -78,9 +141,9 @@ make -j$(nproc)
 ### Database (connection)
 
 ```cpp
-cloudsqlite::Database db("path/to/db.sqlite");
+sqlitex::Database db("path/to/db.sqlite");
 // or with a custom VFS:
-cloudsqlite::Database db("/alias/db", cloudsqlite::OpenFlag::ReadWrite, "bcvfs");
+sqlitex::Database db("/alias/db", sqlitex::OpenFlag::ReadWrite, "bcvfs");
 
 db.execute("CREATE TABLE ...");
 auto stmt = db.prepare("SELECT ... WHERE id = ?");
@@ -112,12 +175,12 @@ while (stmt.step()) {
 ### Session (change tracking)
 
 ```cpp
-cloudsqlite::Session session(db, "main");
+sqlitex::Session session(db, "main");
 session.attach_all();  // Track all tables
 
 // ... application makes changes ...
 
-cloudsqlite::Changeset cs = session.changeset();
+sqlitex::Changeset cs = session.changeset();
 // cs can be stored, transmitted, or applied to another database
 ```
 
@@ -135,30 +198,72 @@ while (iter.next()) {
 
 // Apply to another database
 cs.apply(target_db,
-    [](cloudsqlite::ConflictType type, const cloudsqlite::ChangesetIterator& it) {
-        return cloudsqlite::ChangesetAction::Omit;  // Skip conflicts
+    [](sqlitex::ConflictType type, const sqlitex::ChangesetIterator& it) {
+        return sqlitex::ChangesetAction::Omit;  // Skip conflicts
     });
 
 // Undo via inversion
-cloudsqlite::Changeset undo = cs.invert();
+sqlitex::Changeset undo = cs.invert();
 undo.apply(db, handler);
+```
+
+### Streaming API (for large changesets)
+
+```cpp
+// Stream a changeset from a session to an ostream
+sqlitex::Session session(db);
+session.enable(true);
+session.attach_all();
+// ... make changes ...
+session.changeset_to_stream(std::cout);
+
+// Stream changeset via callback
+std::vector<uint8_t> buffer;
+session.changeset_stream([&](const void* data, int size) {
+    auto* bytes = static_cast<const uint8_t*>(data);
+    buffer.insert(buffer.end(), bytes, bytes + size);
+    return 0; // return non-zero to abort
+});
+
+// Stream-apply a changeset
+auto input = make_stream_input(changeset_data, changeset_size);
+Changeset::apply_stream(target_db, std::move(input), conflict_handler);
+
+// Stream-add to a changegroup
+sqlitex::Changegroup group;
+group.add_stream(std::move(input));
+
+// Stream-output from a changegroup
+group.output_stream([](const void* data, int size) {
+    // process chunk
+    return 0;
+});
+
+// Stream-iterate
+auto iter = ChangesetIterator::from_stream(std::move(input));
+while (iter.next()) {
+    // ... inspect changes ...
+}
 ```
 
 ### Changegroup (merge)
 
 ```cpp
-cloudsqlite::Changegroup group;
+sqlitex::Changegroup group;
 group.add(cs1);
 group.add(cs2);
-cloudsqlite::Changeset merged = group.output();
+sqlitex::Changeset merged = group.output();
 merged.apply(target, handler);
 ```
 
 ### bcvfs (cloud-backed storage)
 
 ```cpp
+#include <filesystem>
+
 // Create and configure the VFS
-cloudsqlite::Bcvfs bcvfs("/tmp/cache", "bcvfs");
+auto cache = std::filesystem::temp_directory_path() / "sqlite-cache";
+sqlitex::Bcvfs bcvfs(cache.string().c_str(), "bcvfs");
 bcvfs.set_cache_size(256 * 1024 * 1024)
      .set_max_requests(8);
 
@@ -173,8 +278,8 @@ bcvfs.set_auth_callback([](auto storage, auto account, auto container,
 bcvfs.attach("azure", "myaccount", "mycontainer", "mydata");
 
 // Open database (uses the bcvfs VFS)
-cloudsqlite::Database db("/mydata/mydb.db",
-    cloudsqlite::OpenFlag::ReadWrite | cloudsqlite::OpenFlag::Create,
+sqlitex::Database db("/mydata/mydb.db",
+    sqlitex::OpenFlag::ReadWrite | sqlitex::OpenFlag::Create,
     "bcvfs");
 
 // ... normal SQL operations ...
@@ -194,19 +299,21 @@ All errors are thrown as typed exceptions:
 ```cpp
 try {
     db.execute("INVALID SQL");
-} catch (const cloudsqlite::RuntimeError& e) {
+} catch (const sqlitex::RuntimeError& e) {
     std::cerr << "SQL error: " << e.what() << '\n';
     std::cerr << "Code: " << e.code() << '\n';
-} catch (const cloudsqlite::ConstraintError& e) {
+} catch (const sqlitex::ConstraintError& e) {
     std::cerr << "Constraint violation: " << e.what() << '\n';
-} catch (const cloudsqlite::Error& e) {
+} catch (const sqlitex::Error& e) {
     std::cerr << "Other error: " << e.what() << '\n';
 }
 ```
 
 ## Thread Safety
 
-This library does not add thread safety beyond what SQLite provides. Each `Database` object should be used from a single thread at a time, or with SQLite's serialized threading mode.
+This library does not add thread safety beyond what SQLite provides. Each
+`Database` object should be used from a single thread at a time, or with
+SQLite's serialized threading mode.
 
 ## License
 

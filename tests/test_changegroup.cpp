@@ -1,12 +1,12 @@
-#include <cloudsqlite/cloudsqlite.h>
+#include <sqlitex/sqlitex.h>
 
 #include <gtest/gtest.h>
 
-namespace cloudsqlite {
+namespace sqlitex {
 namespace {
 
 class ChangegroupTest : public ::testing::Test {
-protected:
+    protected:
     void SetUp() override {
         db1_.execute(R"(
             CREATE TABLE items (
@@ -55,7 +55,7 @@ TEST_F(ChangegroupTest, MoveConstruction) {
     Changegroup g1;
     Changegroup g2(std::move(g1));
     EXPECT_TRUE(g2);
-    EXPECT_FALSE(g1);  // NOLINT
+    EXPECT_FALSE(g1); // NOLINT
 }
 
 TEST_F(ChangegroupTest, MoveAssignment) {
@@ -102,7 +102,8 @@ TEST_F(ChangegroupTest, AddTwoChangesets) {
 
     auto iter = merged.begin();
     int count = 0;
-    while (iter.next()) count++;
+    while (iter.next())
+        count++;
     EXPECT_EQ(count, 2);
 }
 
@@ -132,7 +133,8 @@ TEST_F(ChangegroupTest, AddThreeChangesets) {
 
     auto iter = merged.begin();
     int count = 0;
-    while (iter.next()) count++;
+    while (iter.next())
+        count++;
     EXPECT_EQ(count, 3);
 }
 
@@ -173,7 +175,8 @@ TEST_F(ChangegroupTest, MixChangesetsAndPatchsets) {
 
     auto iter = merged.begin();
     int count = 0;
-    while (iter.next()) count++;
+    while (iter.next())
+        count++;
     EXPECT_EQ(count, 2);
 }
 
@@ -202,19 +205,18 @@ TEST_F(ChangegroupTest, ApplyMergedToTarget) {
     group.add(s2.changeset());
 
     Changeset merged = group.output();
-    merged.apply(target_,
-        [](ConflictType, const ChangesetIterator&) {
-            return ChangesetAction::Replace;
-        });
+    merged.apply(target_, [](ConflictType, const ChangesetIterator&) {
+        return ChangesetAction::Replace;
+    });
 
     auto rows = target_.query("SELECT * FROM items ORDER BY id");
     ASSERT_EQ(rows.size(), 4u);
     EXPECT_EQ(rows[0][0].as_int64(), 1);
-    EXPECT_EQ(rows[0][2].as_int64(), 200);  // Updated
+    EXPECT_EQ(rows[0][2].as_int64(), 200); // Updated
     EXPECT_EQ(rows[1][0].as_int64(), 2);
-    EXPECT_EQ(rows[1][2].as_int64(), 5);    // Unchanged
-    EXPECT_EQ(rows[2][0].as_int64(), 3);    // From db1
-    EXPECT_EQ(rows[3][0].as_int64(), 4);    // From db2
+    EXPECT_EQ(rows[1][2].as_int64(), 5); // Unchanged
+    EXPECT_EQ(rows[2][0].as_int64(), 3); // From db1
+    EXPECT_EQ(rows[3][0].as_int64(), 4); // From db2
 }
 
 // ============================================================================
@@ -248,5 +250,86 @@ TEST_F(ChangegroupTest, OutputMultipleTimes) {
     EXPECT_EQ(out1.size(), out2.size());
 }
 
-}  // anonymous namespace
-}  // namespace cloudsqlite
+// ============================================================================
+// Streaming changegroup API
+// ============================================================================
+
+TEST_F(ChangegroupTest, AddStream) {
+    Session s1(db1_, "main");
+    s1.enable(true);
+    s1.attach_all();
+    db1_.execute("INSERT INTO items VALUES (3, 'StreamAdd', 100)");
+
+    Changeset cs = s1.changeset();
+    auto input = make_stream_input(cs.data(), cs.size());
+
+    Changegroup group;
+    group.add_stream(std::move(input));
+
+    Changeset merged = group.output();
+    EXPECT_FALSE(merged.empty());
+}
+
+TEST_F(ChangegroupTest, OutputStream) {
+    Session s1(db1_, "main");
+    s1.enable(true);
+    s1.attach_all();
+    db1_.execute("INSERT INTO items VALUES (3, 'StreamOut', 100)");
+
+    Changegroup group;
+    group.add(s1.changeset());
+
+    std::vector<uint8_t> out;
+    StreamOutputFunc output = [&](const void* data, int size) -> int {
+        auto* bytes = static_cast<const uint8_t*>(data);
+        out.insert(out.end(), bytes, bytes + size);
+        return 0;
+    };
+
+    group.output_stream(output);
+    EXPECT_FALSE(out.empty());
+
+    // Compare with in-memory output
+    Changeset mem = group.output();
+    ASSERT_EQ(out.size(), static_cast<std::size_t>(mem.size()));
+    EXPECT_EQ(std::memcmp(out.data(), mem.data(), mem.size()), 0);
+}
+
+TEST_F(ChangegroupTest, AddAndOutputStreamRoundTrip) {
+    Session s1(db1_, "main");
+    s1.enable(true);
+    s1.attach_all();
+    db1_.execute("INSERT INTO items VALUES (3, 'RoundTrip', 100)");
+
+    Changeset cs = s1.changeset();
+    auto input = make_stream_input(cs.data(), cs.size());
+
+    Changegroup group;
+    group.add_stream(std::move(input));
+
+    std::vector<uint8_t> out;
+    StreamOutputFunc output = [&](const void* data, int size) -> int {
+        auto* bytes = static_cast<const uint8_t*>(data);
+        out.insert(out.end(), bytes, bytes + size);
+        return 0;
+    };
+    group.output_stream(output);
+
+    EXPECT_FALSE(out.empty());
+
+    // Verify the output can be applied to a target database
+    auto* merged_data = sqlite3_malloc(out.size());
+    std::memcpy(merged_data, out.data(), out.size());
+    Changeset merged(merged_data, static_cast<int>(out.size()));
+
+    merged.apply(target_, [](ConflictType, const ChangesetIterator&) {
+        return ChangesetAction::Abort;
+    });
+
+    auto count =
+        target_.query_value<int64_t>("SELECT COUNT(*) FROM items");
+    EXPECT_EQ(*count, 1);
+}
+
+} // anonymous namespace
+} // namespace sqlitex

@@ -1,5 +1,5 @@
 # ============================================================================
-# CloudsQLite Test Suite
+# Sqlitex Test Suite
 # ============================================================================
 
 # Collect all test sources
@@ -8,32 +8,41 @@ set(TEST_SOURCES
     test_value.cpp
     test_database.cpp
     test_statement.cpp
-    test_session.cpp
-    test_changeset.cpp
-    test_changegroup.cpp
+    test_function.cpp
+    test_virtual_table.cpp
+    test_blobio.cpp
+    test_bcvfs.cpp
 )
 
-# Create the test executable
-add_executable(cloudsqlite_tests ${TEST_SOURCES})
+if(SQLITEX_HAS_SESSION)
+    list(APPEND TEST_SOURCES
+        test_session.cpp
+        test_changeset.cpp
+        test_changegroup.cpp
+    )
+endif()
 
-target_link_libraries(cloudsqlite_tests
+# Create the test executable
+add_executable(sqlitex_tests ${TEST_SOURCES})
+
+target_link_libraries(sqlitex_tests
     PRIVATE
-        cloudsqlite
+        sqlitex
         GTest::gtest
         GTest::gtest_main
 )
 
-target_include_directories(cloudsqlite_tests
+target_include_directories(sqlitex_tests
     PRIVATE
         ${CMAKE_SOURCE_DIR}/include
-        ${SQLite3_INCLUDE_DIRS}
+        ${CMAKE_BINARY_DIR}
 )
 
 # Discover and register tests with CTest
 include(GoogleTest)
-gtest_discover_tests(cloudsqlite_tests
+gtest_discover_tests(sqlitex_tests
     DISCOVERY_TIMEOUT 30
     PROPERTIES
-        LABELS "cloudsqlite"
+        LABELS "sqlitex"
         TIMEOUT 60
 )

@@ -1,4 +1,4 @@
-#include <cloudsqlite/cloudsqlite.h>
+#include <sqlitex/sqlitex.h>
 
 #include <gtest/gtest.h>
 
@@ -6,14 +6,15 @@
 #include <string_view>
 #include <vector>
 
-namespace cloudsqlite {
+namespace sqlitex {
 namespace {
 
 class StatementTest : public ::testing::Test {
-protected:
+    protected:
     void SetUp() override {
-        db_.execute("CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT,"
-                    " score REAL, data BLOB)");
+        db_.execute(
+            "CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT,"
+            " score REAL, data BLOB)");
         db_.execute("INSERT INTO t VALUES (1, 'Alice', 95.5, X'DEAD')");
         db_.execute("INSERT INTO t VALUES (2, 'Bob', 82.0, X'BEEF')");
         db_.execute("INSERT INTO t VALUES (3, 'Charlie', 70.0, NULL)");
@@ -109,7 +110,7 @@ TEST_F(StatementTest, StepExhausted) {
 
 TEST_F(StatementTest, ExecuteReturnsBool) {
     auto stmt = db_.prepare("INSERT INTO t VALUES (4, 'Eve', 100.0, NULL)");
-    EXPECT_FALSE(stmt.execute());  // INSERT returns no rows
+    EXPECT_FALSE(stmt.execute()); // INSERT returns no rows
 }
 
 TEST_F(StatementTest, ResetAndReuse) {
@@ -235,7 +236,7 @@ TEST_F(StatementTest, MoveConstruction) {
 
     Statement stmt2(std::move(stmt1));
     EXPECT_TRUE(stmt2);
-    EXPECT_FALSE(stmt1);  // NOLINT
+    EXPECT_FALSE(stmt1); // NOLINT
 
     stmt2.step();
     EXPECT_EQ(stmt2.column_int64(0), 1);
@@ -250,5 +251,5 @@ TEST_F(StatementTest, MoveAssignment) {
     EXPECT_EQ(stmt2.column_int64(0), 1);
 }
 
-}  // anonymous namespace
-}  // namespace cloudsqlite
+} // anonymous namespace
+} // namespace sqlitex

@@ -1,7 +1,7 @@
-#include "cloudsqlite/statement.h"
-#include "cloudsqlite/database.h"
-#include "cloudsqlite/error.h"
-#include "cloudsqlite/value.h"
+#include "sqlitex/statement.h"
+#include "sqlitex/database.h"
+#include "sqlitex/error.h"
+#include "sqlitex/value.h"
 
 #include <sqlite3.h>
 
@@ -9,28 +9,32 @@
 #include <stdexcept>
 #include <string>
 
-namespace cloudsqlite {
+namespace sqlitex {
 
 // ============================================================================
 // Construction / Destruction
 // ============================================================================
 
 Statement::Statement(sqlite3_stmt* stmt, Database* db) noexcept
-    : stmt_(stmt), db_(db) {}
+    : stmt_(stmt), db_(db) {
+}
 
 Statement::~Statement() {
-    if (stmt_) {
+    if (stmt_ != nullptr) {
         sqlite3_finalize(stmt_);
     }
 }
 
 Statement::Statement(Statement&& other) noexcept
-    : stmt_(std::exchange(other.stmt_, nullptr))
-    , db_(std::exchange(other.db_, nullptr)) {}
+    : stmt_(std::exchange(other.stmt_, nullptr)),
+      db_(std::exchange(other.db_, nullptr)) {
+}
 
 Statement& Statement::operator=(Statement&& other) noexcept {
     if (this != &other) {
-        if (stmt_) sqlite3_finalize(stmt_);
+        if (stmt_ != nullptr) {
+            sqlite3_finalize(stmt_);
+        }
         stmt_ = std::exchange(other.stmt_, nullptr);
         db_ = std::exchange(other.db_, nullptr);
     }
@@ -41,7 +45,7 @@ Statement& Statement::operator=(Statement&& other) noexcept {
 // Binding
 // ============================================================================
 
-Statement& Statement::bind(int index, std::nullptr_t) {
+Statement& Statement::bind(int index, std::nullptr_t /*unused*/) {
     throw_on_error(sqlite3_bind_null(stmt_, index), db_->handle());
     return *this;
 }
@@ -104,11 +108,15 @@ Statement& Statement::bind(int index, const Value& value) {
 // ============================================================================
 
 bool Statement::step() {
-    int rc = sqlite3_step(stmt_);
-    if (rc == SQLITE_ROW) return true;
-    if (rc == SQLITE_DONE) return false;
+    int const rc = sqlite3_step(stmt_);
+    if (rc == SQLITE_ROW) {
+        return true;
+    }
+    if (rc == SQLITE_DONE) {
+        return false;
+    }
     throw_on_error(rc, db_->handle());
-    return false;  // unreachable
+    return false; // unreachable
 }
 
 bool Statement::execute() {
@@ -135,12 +143,12 @@ int Statement::column_type(int index) const noexcept {
     return sqlite3_column_type(stmt_, index);
 }
 
-std::string_view Statement::column_name(int index) const {
+std::string_view Statement::column_name(int index) const noexcept {
     const char* name = sqlite3_column_name(stmt_, index);
     return name ? std::string_view(name) : std::string_view{};
 }
 
-std::string_view Statement::column_decltype(int index) const {
+std::string_view Statement::column_decltype(int index) const noexcept {
     const char* dt = sqlite3_column_decltype(stmt_, index);
     return dt ? std::string_view(dt) : std::string_view{};
 }
@@ -156,9 +164,11 @@ Value Statement::column_value(int index) const {
             reinterpret_cast<const char*>(sqlite3_column_text(stmt_, index)),
             static_cast<std::size_t>(sqlite3_column_bytes(stmt_, index))));
     case SQLITE_BLOB: {
-        const auto* data = static_cast<const uint8_t*>(sqlite3_column_blob(stmt_, index));
-        int size = sqlite3_column_bytes(stmt_, index);
-        if (!data || size <= 0) return Value(std::vector<uint8_t>{});
+        const auto* data =
+            static_cast<const uint8_t*>(sqlite3_column_blob(stmt_, index));
+        int const size = sqlite3_column_bytes(stmt_, index);
+        if (!data || size <= 0)
+            return Value(std::vector<uint8_t>{});
         return Value(std::vector<uint8_t>(data, data + size));
     }
     case SQLITE_NULL:
@@ -180,9 +190,13 @@ double Statement::column_double(int index) const {
 }
 
 std::string_view Statement::column_text(int index) const {
-    const auto* text = reinterpret_cast<const char*>(sqlite3_column_text(stmt_, index));
-    if (!text) return {};
-    return std::string_view(text, static_cast<std::size_t>(sqlite3_column_bytes(stmt_, index)));
+    const auto* text =
+        reinterpret_cast<const char*>(sqlite3_column_text(stmt_, index));
+    if (text == nullptr) {
+        return {};
+    }
+    return std::string_view(
+        text, static_cast<std::size_t>(sqlite3_column_bytes(stmt_, index)));
 }
 
 const void* Statement::column_blob(int index) const {
@@ -198,17 +212,21 @@ bool Statement::column_is_null(int index) const noexcept {
 }
 
 std::optional<int64_t> Statement::column_optional_int64(int index) const {
-    if (column_is_null(index)) return std::nullopt;
+    if (column_is_null(index))
+        return std::nullopt;
     return column_int64(index);
 }
 
 std::optional<double> Statement::column_optional_double(int index) const {
-    if (column_is_null(index)) return std::nullopt;
+    if (column_is_null(index))
+        return std::nullopt;
     return column_double(index);
 }
 
-std::optional<std::string_view> Statement::column_optional_text(int index) const {
-    if (column_is_null(index)) return std::nullopt;
+std::optional<std::string_view> Statement::column_optional_text(
+    int index) const {
+    if (column_is_null(index))
+        return std::nullopt;
     return column_text(index);
 }
 
@@ -225,14 +243,16 @@ int Statement::bind_parameter_index(std::string_view name) const {
     // include the leading ':', '@', or '$'.
     std::string n(name);
     int idx = sqlite3_bind_parameter_index(stmt_, n.c_str());
-    if (idx == 0 && (n.empty() || (n[0] != ':' && n[0] != '@' && n[0] != '$'))) {
+    if (idx == 0 &&
+        (n.empty() || (n[0] != ':' && n[0] != '@' && n[0] != '$'))) {
         // Try with colon prefix
         n = ":" + n;
         idx = sqlite3_bind_parameter_index(stmt_, n.c_str());
     }
     if (idx == 0) {
-        throw NotFoundError(ErrorCode::NotFound,
-                            std::string("Unknown bind parameter: ") + std::string(name));
+        throw NotFoundError(
+            ErrorCode::NotFound,
+            std::string("Unknown bind parameter: ") + std::string(name));
     }
     return idx;
 }
@@ -263,12 +283,14 @@ std::string_view Statement::sql() const noexcept {
     return s ? std::string_view(s) : std::string_view{};
 }
 
-std::string_view Statement::expanded_sql() const {
+std::string Statement::expanded_sql() const {
     char* s = sqlite3_expanded_sql(stmt_);
-    if (!s) return {};
-    // Note: expanded SQL is valid until stmt_ is finalized or reset.
-    // We return a view into SQLite's internal buffer.
-    return std::string_view(s);
+    if (s == nullptr) {
+        return {};
+    }
+    std::string result(s);
+    sqlite3_free(s);
+    return result;
 }
 
-} // namespace cloudsqlite
+} // namespace sqlitex

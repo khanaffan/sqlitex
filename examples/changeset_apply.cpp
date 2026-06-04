@@ -1,4 +1,4 @@
-#include <cloudsqlite/cloudsqlite.h>
+#include <sqlitex/sqlitex.h>
 
 #include <iostream>
 #include <string>
@@ -6,7 +6,7 @@
 int main() {
     try {
         // Create a database with initial data
-        cloudsqlite::Database db(":memory:");
+        sqlitex::Database db(":memory:");
         db.execute(R"(
             CREATE TABLE config (
                 key TEXT PRIMARY KEY,
@@ -19,11 +19,12 @@ int main() {
 
         std::cout << "Initial config:\n";
         for (const auto& row : db.query("SELECT * FROM config ORDER BY key")) {
-            std::cout << "  " << row[0].as_text() << " = " << row[1].as_text() << '\n';
+            std::cout << "  " << row[0].as_text() << " = " << row[1].as_text()
+                      << '\n';
         }
 
         // Start a session to track changes
-        cloudsqlite::Session session(db, "main");
+        sqlitex::Session session(db, "main");
         session.attach_all();
 
         // Make some changes
@@ -32,24 +33,25 @@ int main() {
         db.execute("INSERT INTO config VALUES ('debug', 'true')");
 
         // Extract changeset
-        cloudsqlite::Changeset cs = session.changeset();
+        sqlitex::Changeset cs = session.changeset();
 
         // --- Undo by inverting and applying back ---
         std::cout << "\nInverting and applying changeset to undo changes...\n";
-        cloudsqlite::Changeset undo = cs.invert();
+        sqlitex::Changeset undo = cs.invert();
 
-        undo.apply(db,
-            [](cloudsqlite::ConflictType, const cloudsqlite::ChangesetIterator&) {
+        undo.apply(
+            db, [](sqlitex::ConflictType, const sqlitex::ChangesetIterator&) {
                 // Abort on any conflict during undo
-                return cloudsqlite::ChangesetAction::Abort;
+                return sqlitex::ChangesetAction::Abort;
             });
 
         std::cout << "\nConfig after undo:\n";
         for (const auto& row : db.query("SELECT * FROM config ORDER BY key")) {
-            std::cout << "  " << row[0].as_text() << " = " << row[1].as_text() << '\n';
+            std::cout << "  " << row[0].as_text() << " = " << row[1].as_text()
+                      << '\n';
         }
 
-    } catch (const cloudsqlite::Error& e) {
+    } catch (const sqlitex::Error& e) {
         std::cerr << "Error [" << e.code() << "]: " << e.what() << '\n';
         return 1;
     }

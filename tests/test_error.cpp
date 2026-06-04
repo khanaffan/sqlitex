@@ -1,10 +1,10 @@
-#include <cloudsqlite/cloudsqlite.h>
+#include <sqlitex/sqlitex.h>
 
 #include <gtest/gtest.h>
 
 #include <stdexcept>
 
-namespace cloudsqlite {
+namespace sqlitex {
 namespace {
 
 // ============================================================================
@@ -112,5 +112,5 @@ TEST(ErrorTest, ChangesetApplyError) {
     EXPECT_STREQ(e.what(), "apply failed");
 }
 
-}  // anonymous namespace
-}  // namespace cloudsqlite
+} // anonymous namespace
+} // namespace sqlitex

@@ -1,7 +1,7 @@
-#include "cloudsqlite/session.h"
-#include "cloudsqlite/changeset.h"
-#include "cloudsqlite/database.h"
-#include "cloudsqlite/error.h"
+#include "sqlitex/session.h"
+#include "sqlitex/changeset.h"
+#include "sqlitex/database.h"
+#include "sqlitex/error.h"
 
 #include <sqlite3.h>
 
@@ -9,7 +9,9 @@
 #include <string>
 #include <utility>
 
-namespace cloudsqlite {
+#ifdef SQLITEX_HAS_SESSION
+
+namespace sqlitex {
 
 // ============================================================================
 // C callback shims
@@ -28,8 +30,7 @@ int table_filter_shim(void* ctx, const char* tbl_name) {
 // Construction / Destruction
 // ============================================================================
 
-Session::Session(Database& db, std::string_view db_name)
-    : db_(&db) {
+Session::Session(Database& db, std::string_view db_name) : db_(&db) {
     std::string name(db_name);
     sqlite3_session* s = nullptr;
 
@@ -40,22 +41,33 @@ Session::Session(Database& db, std::string_view db_name)
 }
 
 Session::~Session() {
-    if (session_) {
+    if (session_ != nullptr) {
         sqlite3session_delete(session_);
     }
 }
 
 Session::Session(Session&& other) noexcept
-    : session_(std::exchange(other.session_, nullptr))
-    , db_(std::exchange(other.db_, nullptr))
-    , filter_cb_(std::move(other.filter_cb_)) {}
+    : session_(std::exchange(other.session_, nullptr)),
+      db_(std::exchange(other.db_, nullptr)),
+      filter_cb_(std::move(other.filter_cb_)) {
+    if (filter_cb_ && session_) {
+        sqlite3session_table_filter(session_, table_filter_shim,
+                                    static_cast<void*>(filter_cb_.get()));
+    }
+}
 
 Session& Session::operator=(Session&& other) noexcept {
     if (this != &other) {
-        if (session_) sqlite3session_delete(session_);
+        if (session_ != nullptr) {
+            sqlite3session_delete(session_);
+        }
         session_ = std::exchange(other.session_, nullptr);
         db_ = std::exchange(other.db_, nullptr);
         filter_cb_ = std::move(other.filter_cb_);
+        if (filter_cb_ && session_) {
+            sqlite3session_table_filter(session_, table_filter_shim,
+                                        static_cast<void*>(filter_cb_.get()));
+        }
     }
     return *this;
 }
@@ -65,12 +77,12 @@ Session& Session::operator=(Session&& other) noexcept {
 // ============================================================================
 
 int Session::enable(bool enabled) {
-    int prev = sqlite3session_enable(session_, enabled ? 1 : 0);
+    int const prev = sqlite3session_enable(session_, enabled ? 1 : 0);
     return prev;
 }
 
 int Session::set_indirect(bool indirect) {
-    int prev = sqlite3session_indirect(session_, indirect ? 1 : 0);
+    int const prev = sqlite3session_indirect(session_, indirect ? 1 : 0);
     return prev;
 }
 
@@ -91,7 +103,7 @@ void Session::attach_all() {
 void Session::set_table_filter(SessionTableFilter filter) {
     filter_cb_ = std::make_unique<SessionTableFilter>(std::move(filter));
     sqlite3session_table_filter(session_, table_filter_shim,
-                                 static_cast<void*>(filter_cb_.get()));
+                                static_cast<void*>(filter_cb_.get()));
 }
 
 // ============================================================================
@@ -102,38 +114,64 @@ Changeset Session::changeset() {
     void* data = nullptr;
     int n = 0;
 
-    int rc = sqlite3session_changeset(session_, &n, &data);
+    int const rc = sqlite3session_changeset(session_, &n, &data);
     throw_on_error(rc, db_->handle());
 
-    return Changeset(data, n);
+    return {data, n};
 }
 
 Patchset Session::patchset() {
     void* data = nullptr;
     int n = 0;
 
-    int rc = sqlite3session_patchset(session_, &n, &data);
+    int const rc = sqlite3session_patchset(session_, &n, &data);
     throw_on_error(rc, db_->handle());
 
-    return Patchset(data, n);
+    return {data, n};
 }
 
-Changeset Session::diff(std::string_view table_name,
-                         std::string_view from_db) {
+Changeset Session::diff(std::string_view table_name, std::string_view from_db) {
     std::string tbl(table_name);
     std::string from(from_db);
     char* err_msg = nullptr;
 
-    int rc = sqlite3session_diff(session_, from.c_str(),
-                                  tbl.c_str(), &err_msg);
+    int rc = sqlite3session_diff(session_, from.c_str(), tbl.c_str(), &err_msg);
     if (rc != SQLITE_OK) {
         std::string msg(err_msg ? err_msg : "diff failed");
-        if (err_msg) sqlite3_free(err_msg);
+        if (err_msg != nullptr) {
+            sqlite3_free(err_msg);
+        }
         throw Error(map_error_code(rc), std::move(msg));
     }
 
     // After diff, extract the changeset
     return changeset();
+}
+
+// ============================================================================
+// Streaming Extraction
+// ============================================================================
+
+void Session::changeset_stream(StreamOutputFunc output) {
+    void* ctx = static_cast<void*>(&output);
+    int const rc = sqlite3session_changeset_strm(
+        session_, detail::stream_output_shim, ctx);
+    throw_on_error(rc, db_->handle());
+}
+
+void Session::patchset_stream(StreamOutputFunc output) {
+    void* ctx = static_cast<void*>(&output);
+    int const rc = sqlite3session_patchset_strm(
+        session_, detail::stream_output_shim, ctx);
+    throw_on_error(rc, db_->handle());
+}
+
+void Session::changeset_to_stream(std::ostream& os) {
+    changeset_stream(make_stream_output(os));
+}
+
+void Session::patchset_to_stream(std::ostream& os) {
+    patchset_stream(make_stream_output(os));
 }
 
 // ============================================================================
@@ -150,7 +188,9 @@ int64_t Session::memory_used() const noexcept {
 
 void Session::set_object_config(int op, void* arg) {
     throw_on_error(sqlite3session_object_config(session_, op, arg),
-                    db_->handle());
+                   db_->handle());
 }
 
-} // namespace cloudsqlite
+} // namespace sqlitex
+
+#endif // SQLITEX_HAS_SESSION

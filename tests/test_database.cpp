@@ -1,4 +1,4 @@
-#include <cloudsqlite/cloudsqlite.h>
+#include <sqlitex/sqlitex.h>
 
 #include <gtest/gtest.h>
 
@@ -6,7 +6,7 @@
 #include <fstream>
 #include <string>
 
-namespace cloudsqlite {
+namespace sqlitex {
 namespace {
 
 // ============================================================================
@@ -14,15 +14,18 @@ namespace {
 // ============================================================================
 
 class TempFile {
-public:
+    public:
     TempFile() {
-        path_ = "/tmp/cloudsqlite_test_" + std::to_string(counter_++) + ".db";
+        path_ = "/tmp/sqlitex_test_" + std::to_string(counter_++) + ".db";
     }
     ~TempFile() {
         std::remove(path_.c_str());
     }
-    const std::string& path() const { return path_; }
-private:
+    const std::string& path() const {
+        return path_;
+    }
+
+    private:
     std::string path_;
     static inline int counter_ = 0;
 };
@@ -40,9 +43,8 @@ TEST(DatabaseTest, OpenInMemory) {
 TEST(DatabaseTest, OpenFile) {
     TempFile tmp;
     {
-        Database db(tmp.path(),
-                    static_cast<int>(OpenFlag::ReadWrite) |
-                        static_cast<int>(OpenFlag::Create));
+        Database db(tmp.path(), static_cast<int>(OpenFlag::ReadWrite) |
+                                    static_cast<int>(OpenFlag::Create));
         EXPECT_TRUE(db);
     }
     // File should exist after close
@@ -61,7 +63,7 @@ TEST(DatabaseTest, MoveConstruction) {
 
     Database db2(std::move(db1));
     EXPECT_TRUE(db2);
-    EXPECT_FALSE(db1);  // NOLINT(bugprone-use-after-move)
+    EXPECT_FALSE(db1); // NOLINT(bugprone-use-after-move)
 }
 
 TEST(DatabaseTest, MoveAssignment) {
@@ -69,12 +71,12 @@ TEST(DatabaseTest, MoveAssignment) {
     Database db2(":memory:");
     db2 = std::move(db1);
     EXPECT_TRUE(db2);
-    EXPECT_FALSE(db1);  // NOLINT(bugprone-use-after-move)
+    EXPECT_FALSE(db1); // NOLINT(bugprone-use-after-move)
 }
 
 TEST(DatabaseTest, CantOpen) {
     EXPECT_THROW(Database db("/nonexistent/path/db.sqlite",
-                              static_cast<int>(OpenFlag::ReadOnly)),
+                             static_cast<int>(OpenFlag::ReadOnly)),
                  CantOpenError);
 }
 
@@ -84,7 +86,8 @@ TEST(DatabaseTest, CantOpen) {
 
 TEST(DatabaseTest, ExecuteCreateTable) {
     Database db(":memory:");
-    EXPECT_NO_THROW(db.execute("CREATE TABLE t (id INTEGER PRIMARY KEY, val TEXT)"));
+    EXPECT_NO_THROW(
+        db.execute("CREATE TABLE t (id INTEGER PRIMARY KEY, val TEXT)"));
 }
 
 TEST(DatabaseTest, ExecuteInsertAndQuery) {
@@ -182,14 +185,30 @@ TEST(DatabaseTest, TransactionCommit) {
     EXPECT_EQ(*count, 2);
 }
 
-TEST(DatabaseTest, TransactionRollback) {
+TEST(DatabaseTest, TransactionAutoCommit) {
     Database db(":memory:");
     db.execute("CREATE TABLE t (id INTEGER PRIMARY KEY)");
 
     {
         auto txn = Database::Transaction(db);
         db.execute("INSERT INTO t VALUES (1)");
-        // txn destroyed without commit → rollback
+        // txn destroyed without explicit commit → auto-commits on clean exit
+    }
+
+    auto count = db.query_value<int64_t>("SELECT COUNT(*) FROM t");
+    EXPECT_EQ(*count, 1);
+}
+
+TEST(DatabaseTest, TransactionRollbackOnException) {
+    Database db(":memory:");
+    db.execute("CREATE TABLE t (id INTEGER PRIMARY KEY)");
+
+    try {
+        auto txn = Database::Transaction(db);
+        db.execute("INSERT INTO t VALUES (1)");
+        throw std::runtime_error("boom");
+    } catch (const std::runtime_error&) {
+        // exception in flight → destructor rolls back
     }
 
     auto count = db.query_value<int64_t>("SELECT COUNT(*) FROM t");
@@ -268,5 +287,5 @@ TEST(DatabaseTest, CloseAndReopen) {
     }
 }
 
-}  // anonymous namespace
-}  // namespace cloudsqlite
+} // anonymous namespace
+} // namespace sqlitex
