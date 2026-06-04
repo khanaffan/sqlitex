@@ -52,3 +52,34 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build --output-on-failure --parallel
+
+  # ============================================================================
+  # Additional job: build with SQLITEX_BCVFS=ON (Linux only)
+  # This catches any linker errors in bcvfs / prefetch code that would not
+  # be detected by the main matrix (which always uses BCVFS=OFF).
+  # ============================================================================
+  build-bcvfs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcurl4-openssl-dev libssl-dev
+
+      - name: Configure CMake (BCVFS=ON)
+        run: >
+          cmake -B build-bcvfs
+          -DCMAKE_BUILD_TYPE=Debug
+          -DBUILD_SHARED_LIBS=OFF
+          -DSQLITEX_BUILD_TESTS=ON
+          -DSQLITEX_BUILD_EXAMPLES=ON
+          -DSQLITEX_BCVFS=ON
+
+      - name: Build
+        run: cmake --build build-bcvfs --parallel
+
+      - name: Test
+        run: ctest --test-dir build-bcvfs --output-on-failure --parallel

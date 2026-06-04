@@ -1,34 +1,16 @@
 #include <sqlitex/sqlitex.h>
 
+#include "test_helpers.h"
+
 #include <gtest/gtest.h>
 
-#include <cstdio>
 #include <fstream>
 #include <string>
 
 namespace sqlitex {
 namespace {
 
-// ============================================================================
-// RAII temp file helper
-// ============================================================================
-
-class TempFile {
-    public:
-    TempFile() {
-        path_ = "/tmp/sqlitex_test_" + std::to_string(counter_++) + ".db";
-    }
-    ~TempFile() {
-        std::remove(path_.c_str());
-    }
-    const std::string& path() const {
-        return path_;
-    }
-
-    private:
-    std::string path_;
-    static inline int counter_ = 0;
-};
+using test::TempFile;
 
 // ============================================================================
 // Construction / open
@@ -267,6 +249,62 @@ TEST(DatabaseTest, ErrorCodeAndMessage) {
 TEST(DatabaseTest, BusyTimeout) {
     Database db(":memory:");
     EXPECT_NO_THROW(db.set_busy_timeout(1000));
+}
+
+// ============================================================================
+// exec() with RowCallback
+// ============================================================================
+
+TEST(DatabaseTest, ExecCallbackCollectsRows) {
+    Database db(":memory:");
+    db.execute("CREATE TABLE t (id INTEGER, val TEXT)");
+    db.execute("INSERT INTO t VALUES (1, 'alpha')");
+    db.execute("INSERT INTO t VALUES (2, 'beta')");
+
+    std::vector<std::pair<std::string, std::string>> rows;
+    db.exec("SELECT id, val FROM t ORDER BY id",
+            [&](int ncols, char** values, char** names) -> bool {
+                EXPECT_EQ(ncols, 2);
+                rows.push_back({values[0] ? values[0] : "",
+                                values[1] ? values[1] : ""});
+                (void)names;
+                return true; // continue
+            });
+
+    ASSERT_EQ(rows.size(), 2u);
+    EXPECT_EQ(rows[0].first, "1");
+    EXPECT_EQ(rows[0].second, "alpha");
+    EXPECT_EQ(rows[1].first, "2");
+    EXPECT_EQ(rows[1].second, "beta");
+}
+
+TEST(DatabaseTest, ExecCallbackReturnFalseStopsEarly) {
+    Database db(":memory:");
+    db.execute("CREATE TABLE t (id INTEGER)");
+    db.execute("INSERT INTO t VALUES (1)");
+    db.execute("INSERT INTO t VALUES (2)");
+    db.execute("INSERT INTO t VALUES (3)");
+
+    int count = 0;
+    // Returning false on the first row should stop iteration without throwing.
+    EXPECT_NO_THROW(db.exec("SELECT id FROM t ORDER BY id",
+                             [&](int, char**, char**) -> bool {
+                                 ++count;
+                                 return false; // stop after first row
+                             }));
+    EXPECT_EQ(count, 1);
+}
+
+TEST(DatabaseTest, ExecCallbackExceptionPropagates) {
+    Database db(":memory:");
+    db.execute("CREATE TABLE t (id INTEGER)");
+    db.execute("INSERT INTO t VALUES (1)");
+
+    EXPECT_THROW(db.exec("SELECT id FROM t",
+                          [](int, char**, char**) -> bool {
+                              throw std::runtime_error("callback error");
+                          }),
+                 std::runtime_error);
 }
 
 // ============================================================================

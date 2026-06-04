@@ -24,15 +24,13 @@ Database::Database(std::string_view path, OpenFlags flags,
 // unique_ptr handles close
 
 Database::Database(Database&& other) noexcept
-    : db_holder_(std::move(other.db_holder_)),
-      db_(std::exchange(other.db_, nullptr)) {
+    : db_holder_(std::move(other.db_holder_)) {
 }
 
 Database& Database::operator=(Database&& other) noexcept {
     if (this != &other) {
         close();
         db_holder_ = std::move(other.db_holder_);
-        db_ = std::exchange(other.db_, nullptr);
     }
     return *this;
 }
@@ -42,29 +40,29 @@ void Database::open(std::string_view path, OpenFlags flags,
     close();
 
     sqlite3* raw = nullptr;
-    const char* vfs_name = vfs.empty() ? nullptr : vfs.data();
+    // string_view::data() is not null-terminated; copy to std::string first.
     std::string path_str(path);
+    std::string vfs_str(vfs);
+    const char* vfs_name = vfs.empty() ? nullptr : vfs_str.c_str();
 
     int rc = sqlite3_open_v2(path_str.c_str(), &raw, flags, vfs_name);
     if (rc != SQLITE_OK) {
         if (raw != nullptr) {
+            // Capture the error message before closing the handle, then throw
+            // via throw_on_error so the correct Error subclass is raised.
             std::string msg(sqlite3_errmsg(raw));
             sqlite3_close_v2(raw);
-            throw_sqlite_error(rc, nullptr);
+            throw_on_error(rc, msg.c_str());
         }
-        throw Error(ErrorCode::CantOpen,
-                    std::string("Cannot open database: ") + std::string(path));
+        throw_on_error(rc, (std::string("Cannot open database: ") +
+                             std::string(path)).c_str());
     }
 
     db_holder_.reset(raw);
-    db_ = raw;
 }
 
 void Database::close() noexcept {
-    if (db_holder_) {
-        db_holder_.reset();
-        db_ = nullptr;
-    }
+    db_holder_.reset();
 }
 
 // ============================================================================
@@ -76,9 +74,9 @@ Statement Database::prepare(std::string_view sql) {
     const char* tail = nullptr;
     std::string sql_str(sql);
 
-    int rc = sqlite3_prepare_v2(db_, sql_str.c_str(),
+    int rc = sqlite3_prepare_v2(db_holder_.get(), sql_str.c_str(),
                                 static_cast<int>(sql_str.size()), &stmt, &tail);
-    throw_on_error(rc, db_);
+    throw_on_error(rc, db_holder_.get());
 
     return {stmt, this};
 }
@@ -87,29 +85,58 @@ void Database::execute(std::string_view sql) {
     std::string sql_str(sql);
     char* err_msg = nullptr;
 
-    int rc = sqlite3_exec(db_, sql_str.c_str(), nullptr, nullptr, &err_msg);
+    int rc = sqlite3_exec(db_holder_.get(), sql_str.c_str(), nullptr, nullptr, &err_msg);
     if (rc != SQLITE_OK) {
-        std::string msg(err_msg ? err_msg : "unknown error");
+        // err_msg may carry more detail than sqlite3_errmsg; use it when present.
+        std::string msg(err_msg ? err_msg : sqlite3_errmsg(db_holder_.get()));
         sqlite3_free(err_msg);
-        throw_sqlite_error(rc, db_);
+        throw_on_error(rc, msg.c_str());
     }
 }
 
 void Database::exec(std::string_view sql, RowCallback cb) {
     std::string sql_str(sql);
 
+    // Context passed through the C shim: callback pointer + pending exception.
+    struct ExecCtx {
+        RowCallback* cb;
+        std::exception_ptr* exc;
+    };
+    std::exception_ptr pending_exc;
+    ExecCtx ctx{&cb, &pending_exc};
+
+    // The lambda must not capture anything so it is convertible to a
+    // plain function pointer.  All state flows through pCtx.
+    // Exceptions are caught here so they never propagate through the C
+    // boundary (which would be undefined behaviour).
     auto exec_cb = [](void* pCtx, int ncols, char** values,
                       char** names) -> int {
-        auto& fn = *static_cast<RowCallback*>(pCtx);
-        return fn(ncols, values, names) ? 0 : 1;
+        auto* ec = static_cast<ExecCtx*>(pCtx);
+        try {
+            return (*ec->cb)(ncols, values, names) ? 0 : 1;
+        } catch (...) {
+            *ec->exc = std::current_exception();
+            return 1; // signal SQLite to abort
+        }
     };
 
     char* err_msg = nullptr;
-    int rc = sqlite3_exec(db_, sql_str.c_str(), exec_cb, &cb, &err_msg);
+    int rc = sqlite3_exec(db_holder_.get(), sql_str.c_str(), exec_cb, &ctx, &err_msg);
+    sqlite3_free(err_msg);
+
+    // Re-throw any C++ exception raised inside the callback.
+    if (pending_exc) {
+        std::rethrow_exception(pending_exc);
+    }
+
+    // SQLITE_ABORT is the normal result when the callback returned false to
+    // stop early.  Treat it as a clean stop rather than an error.
+    if (rc == SQLITE_ABORT) {
+        return;
+    }
+
     if (rc != SQLITE_OK) {
-        std::string msg(err_msg ? err_msg : "unknown error");
-        sqlite3_free(err_msg);
-        throw Error(map_error_code(rc), std::move(msg));
+        throw_sqlite_error(rc, db_holder_.get());
     }
 }
 
@@ -151,45 +178,45 @@ void Database::rollback() {
 // ============================================================================
 
 int64_t Database::last_insert_rowid() const noexcept {
-    return sqlite3_last_insert_rowid(db_);
+    return sqlite3_last_insert_rowid(db_holder_.get());
 }
 
 int Database::changes() const noexcept {
-    return sqlite3_changes(db_);
+    return sqlite3_changes(db_holder_.get());
 }
 
 int64_t Database::total_changes() const noexcept {
-    return sqlite3_total_changes(db_);
+    return sqlite3_total_changes(db_holder_.get());
 }
 
 int Database::errcode() const noexcept {
-    return sqlite3_errcode(db_);
+    return sqlite3_errcode(db_holder_.get());
 }
 
 int Database::extended_errcode() const noexcept {
-    return sqlite3_extended_errcode(db_);
+    return sqlite3_extended_errcode(db_holder_.get());
 }
 
 std::string_view Database::errmsg() const noexcept {
-    const char* msg = sqlite3_errmsg(db_);
+    const char* msg = sqlite3_errmsg(db_holder_.get());
     return msg ? std::string_view(msg) : std::string_view{};
 }
 
 void Database::interrupt() {
-    sqlite3_interrupt(db_);
+    sqlite3_interrupt(db_holder_.get());
 }
 
 void Database::set_busy_timeout(int ms) {
-    throw_on_error(sqlite3_busy_timeout(db_, ms), db_);
+    throw_on_error(sqlite3_busy_timeout(db_holder_.get(), ms), db_holder_.get());
 }
 
 bool Database::is_autocommit() const noexcept {
-    return sqlite3_get_autocommit(db_) != 0;
+    return sqlite3_get_autocommit(db_holder_.get()) != 0;
 }
 
 std::string_view Database::db_filename(std::string_view db_name) const {
     std::string name(db_name);
-    const char* fname = sqlite3_db_filename(db_, name.c_str());
+    const char* fname = sqlite3_db_filename(db_holder_.get(), name.c_str());
     return fname ? std::string_view(fname) : std::string_view{};
 }
 
@@ -358,12 +385,12 @@ void window_destroy_shim(void* p) noexcept {
 void Database::create_function(std::string_view name, int n_args,
                                ScalarFunction fn, int flags) {
     auto* ctx = new ScalarFunction(std::move(fn));
-    int rc = sqlite3_create_function_v2(db_, std::string(name).c_str(), n_args,
+    int rc = sqlite3_create_function_v2(db_holder_.get(), std::string(name).c_str(), n_args,
                                         flags, ctx, &scalar_func_shim,
                                         nullptr, // xStep
                                         nullptr, // xFinal
                                         &func_destroy_shim);
-    throw_on_error(rc, db_);
+    throw_on_error(rc, db_holder_.get());
 }
 
 void Database::create_aggregate(
@@ -373,10 +400,10 @@ void Database::create_aggregate(
     auto* ctx = new std::function<std::unique_ptr<AggregateFunction>()>(
         std::move(factory));
     int rc = sqlite3_create_function_v2(
-        db_, std::string(name).c_str(), n_args, flags, ctx,
+        db_holder_.get(), std::string(name).c_str(), n_args, flags, ctx,
         nullptr, // xFunc
         &aggregate_step_shim, &aggregate_final_shim, &aggregate_destroy_shim);
-    throw_on_error(rc, db_);
+    throw_on_error(rc, db_holder_.get());
 }
 
 void Database::create_window_function(
@@ -386,10 +413,10 @@ void Database::create_window_function(
     auto* ctx = new std::function<std::unique_ptr<WindowFunction>()>(
         std::move(factory));
     int rc = sqlite3_create_window_function(
-        db_, std::string(name).c_str(), n_args, flags, ctx, &window_step_shim,
+        db_holder_.get(), std::string(name).c_str(), n_args, flags, ctx, &window_step_shim,
         &window_final_shim, &window_value_shim, &window_inverse_shim,
         &window_destroy_shim);
-    throw_on_error(rc, db_);
+    throw_on_error(rc, db_holder_.get());
 }
 
 // Forward-declared — implemented in virtual_table.cpp
@@ -400,7 +427,7 @@ ModuleRegistration create_module_impl(
 ModuleRegistration Database::create_module(
     std::string_view name,
     std::function<std::unique_ptr<VirtualTable>()> factory, int flags) {
-    return create_module_impl(db_, name, std::move(factory), flags);
+    return create_module_impl(db_holder_.get(), name, std::move(factory), flags);
 }
 
 } // namespace sqlitex

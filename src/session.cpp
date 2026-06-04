@@ -76,14 +76,14 @@ Session& Session::operator=(Session&& other) noexcept {
 // Control
 // ============================================================================
 
-int Session::enable(bool enabled) {
+bool Session::enable(bool enabled) {
     int const prev = sqlite3session_enable(session_, enabled ? 1 : 0);
-    return prev;
+    return prev != 0;
 }
 
-int Session::set_indirect(bool indirect) {
+bool Session::set_indirect(bool indirect) {
     int const prev = sqlite3session_indirect(session_, indirect ? 1 : 0);
-    return prev;
+    return prev != 0;
 }
 
 // ============================================================================
@@ -135,6 +135,11 @@ Changeset Session::diff(std::string_view table_name, std::string_view from_db) {
     std::string from(from_db);
     char* err_msg = nullptr;
 
+    // sqlite3session_diff APPENDS the diff to the session's existing change
+    // set rather than replacing it.  A subsequent call to changeset() will
+    // therefore return all previously accumulated changes PLUS the diff
+    // computed here.  If you want only the diff, call this on a freshly
+    // created session that has no other changes attached.
     int rc = sqlite3session_diff(session_, from.c_str(), tbl.c_str(), &err_msg);
     if (rc != SQLITE_OK) {
         std::string msg(err_msg ? err_msg : "diff failed");

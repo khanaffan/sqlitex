@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -146,10 +147,23 @@ class SQLITEX_EXPORT Statement {
 
     // === Database access ===
 
-    Database& database() noexcept {
+    /// Return the owning Database.
+    /// \pre The statement must have been constructed via Database::prepare()
+    ///      (i.e. must not be default-constructed).
+    /// \throws std::logic_error if the statement is not associated with a
+    ///         database (default-constructed or moved-from).
+    Database& database() {
+        if (db_ == nullptr) {
+            throw std::logic_error(
+                "Statement::database() called on a null statement");
+        }
         return *db_;
     }
-    const Database& database() const noexcept {
+    const Database& database() const {
+        if (db_ == nullptr) {
+            throw std::logic_error(
+                "Statement::database() called on a null statement");
+        }
         return *db_;
     }
 

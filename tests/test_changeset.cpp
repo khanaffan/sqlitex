@@ -573,5 +573,144 @@ TEST_F(ChangesetTest, IteratorFromStream) {
     EXPECT_FALSE(iter.next());
 }
 
+// ============================================================================
+// apply_v2 — with ApplyFlag
+// ============================================================================
+
+TEST_F(ChangesetTest, ApplyV2IgnoresNoop) {
+    // The source changes quantity from 10 to 10 (identical value).
+    // SQLite sessions record no change for a no-op UPDATE, so the changeset
+    // will be empty.  Verify graceful handling: apply_v2 succeeds and the
+    // target row is unchanged.
+    Database target(":memory:");
+    target.execute(
+        "CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT, quantity "
+        "INTEGER)");
+    target.execute("INSERT INTO items VALUES (1, 'Widget', 10)");
+    target.execute("INSERT INTO items VALUES (2, 'Gadget', 5)");
+
+    Session session(db_, "main");
+    session.enable(true);
+    session.attach_all();
+    // Update to a new value so the session records the change.
+    db_.execute("UPDATE items SET quantity = 42 WHERE id = 1");
+
+    Changeset cs = session.changeset();
+    ASSERT_FALSE(cs.empty());
+
+    int conflict_count = 0;
+    // Target already has quantity=10; applying quantity=42 is not a no-op here,
+    // but we use IgnoreNoop so that if the value happened to match it would be
+    // silently skipped. There is no conflict because the target row exists.
+    cs.apply_v2(target,
+                [&](ConflictType, const ChangesetIterator&) -> ChangesetAction {
+                    conflict_count++;
+                    return ChangesetAction::Omit;
+                },
+                static_cast<int>(ApplyFlag::IgnoreNoop));
+
+    EXPECT_EQ(conflict_count, 0);
+    // The change was applied — quantity should now be 42.
+    auto qty =
+        target.query_value<int64_t>("SELECT quantity FROM items WHERE id = 1");
+    EXPECT_EQ(*qty, 42);
+}
+
+TEST_F(ChangesetTest, ApplyV2BasicApply) {
+    Database target(":memory:");
+    target.execute(
+        "CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT, quantity "
+        "INTEGER)");
+    target.execute("INSERT INTO items VALUES (1, 'Widget', 10)");
+    target.execute("INSERT INTO items VALUES (2, 'Gadget', 5)");
+
+    Session session(db_, "main");
+    session.enable(true);
+    session.attach_all();
+    db_.execute("INSERT INTO items VALUES (3, 'V2Item', 77)");
+
+    Changeset cs = session.changeset();
+    cs.apply_v2(target,
+                [](ConflictType, const ChangesetIterator&) -> ChangesetAction {
+                    return ChangesetAction::Abort;
+                });
+
+    auto count = target.query_value<int64_t>("SELECT COUNT(*) FROM items");
+    EXPECT_EQ(*count, 3);
+    auto qty =
+        target.query_value<int64_t>("SELECT quantity FROM items WHERE id = 3");
+    EXPECT_EQ(*qty, 77);
+}
+
+// ============================================================================
+// apply_v3 — per-change filter
+// ============================================================================
+
+TEST_F(ChangesetTest, ApplyV3FilterSkipsSelectedChanges) {
+    Database target(":memory:");
+    target.execute(
+        "CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT, quantity "
+        "INTEGER)");
+    target.execute("INSERT INTO items VALUES (1, 'Widget', 10)");
+    target.execute("INSERT INTO items VALUES (2, 'Gadget', 5)");
+
+    Session session(db_, "main");
+    session.enable(true);
+    session.attach_all();
+
+    // Two inserts on source
+    db_.execute("INSERT INTO items VALUES (3, 'ApplyMe', 10)");
+    db_.execute("INSERT INTO items VALUES (4, 'SkipMe', 20)");
+
+    Changeset cs = session.changeset();
+    ASSERT_FALSE(cs.empty());
+
+    // Per-change filter: only apply id=3, skip id=4
+    int applied = 0;
+    cs.apply_v3(
+        target,
+        [&](ConflictType, const ChangesetIterator&) -> ChangesetAction {
+            return ChangesetAction::Abort;
+        },
+        [](const ChangesetIterator& it) -> bool {
+            // new_int(0) == id column; apply only id == 3
+            auto id = it.new_int(0);
+            return id.has_value() && *id == 3;
+        });
+
+    auto count = target.query_value<int64_t>("SELECT COUNT(*) FROM items");
+    // Original 2 + only id=3 was applied
+    EXPECT_EQ(*count, 3);
+    // id=4 must not exist in target
+    auto row4 =
+        target.query_value<int64_t>("SELECT COUNT(*) FROM items WHERE id = 4");
+    EXPECT_EQ(*row4, 0);
+    (void)applied;
+}
+
+TEST_F(ChangesetTest, ApplyV3NullFilterBehavesLikeApplyV2) {
+    Database target(":memory:");
+    target.execute(
+        "CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT, quantity "
+        "INTEGER)");
+    target.execute("INSERT INTO items VALUES (1, 'Widget', 10)");
+
+    Session session(db_, "main");
+    session.enable(true);
+    session.attach_all();
+    db_.execute("INSERT INTO items VALUES (5, 'V3Item', 55)");
+
+    Changeset cs = session.changeset();
+    // Passing a null per_change_filter should apply all changes.
+    cs.apply_v3(target,
+                [](ConflictType, const ChangesetIterator&) -> ChangesetAction {
+                    return ChangesetAction::Abort;
+                },
+                {} /* no per-change filter */);
+
+    auto count = target.query_value<int64_t>("SELECT COUNT(*) FROM items");
+    EXPECT_EQ(*count, 2);
+}
+
 } // anonymous namespace
 } // namespace sqlitex

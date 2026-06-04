@@ -89,7 +89,7 @@ TEST(BcvfsTest, StubConstructionThrows) {
     EXPECT_THROW(
         {
             try {
-                Bcvfs b("test_cache_path().c_str()", "bcvfs");
+                Bcvfs b(test_cache_path(), "bcvfs");
             } catch (const Error& e) {
                 EXPECT_NE(e.code(), 0);
                 std::string msg(e.what());
@@ -103,7 +103,7 @@ TEST(BcvfsTest, StubConstructionThrows) {
 TEST(BcvfsTest, VfsNameAvailableEvenWhenStub) {
     // Construction throws, so we can't inspect vfs_name directly.
     // vfs_name() is noexcept and returns the stored name.
-    EXPECT_THROW(Bcvfs("test_cache_path().c_str()", "my-custom-vfs"), Error);
+    EXPECT_THROW(Bcvfs(test_cache_path(), "my-custom-vfs"), Error);
 }
 
 // ============================================================================

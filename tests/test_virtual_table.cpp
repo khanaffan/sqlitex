@@ -152,19 +152,20 @@ class RwVTab : public VirtualTable {
     // Read-write support
     //
     // SQLite xUpdate argument convention (observed on SQLite 3.45+):
-    //   argc = N + 2  where N = number of declared columns
-    //   DELETE: argc==1, argv[0]=rowid
-    //   INSERT: argv[0]=NULL (new rowid placeholder),
-    //           argv[1]=NULL (old rowid, NULL for INSERT),
-    //           argv[2..N+1]=column values
-    //   UPDATE: argv[0]=old rowid,
-    //           argv[1]=new rowid (same as old unless rowid changes),
-    //           argv[2..N+1]=column values
-    //
-    int update(int argc, sqlite3_value** argv, int64_t* p_rowid) override {
+     //   argc = N + 2  where N = number of declared columns
+     //   DELETE: argc==1, argv[0]=rowid
+     //   INSERT: argv[0]=NULL (new rowid placeholder),
+     //           argv[1]=NULL (old rowid, NULL for INSERT),
+     //           argv[2..N+1]=column values
+     //   UPDATE: argv[0]=old rowid,
+     //           argv[1]=new rowid (same as old unless rowid changes),
+     //           argv[2..N+1]=column values
+     //
+    int update(int argc, const std::vector<Value>& argv,
+               int64_t* p_rowid) override {
         // DELETE
-        if (argc == 1 && sqlite3_value_type(argv[0]) != SQLITE_NULL) {
-            int64_t rowid = sqlite3_value_int64(argv[0]);
+        if (argc == 1 && !argv[0].is_null()) {
+            int64_t rowid = argv[0].as_int64();
             rows_.erase(std::remove_if(
                             rows_.begin(), rows_.end(),
                             [rowid](const Row& r) { return r.rowid == rowid; }),
@@ -178,24 +179,24 @@ class RwVTab : public VirtualTable {
         // argv[2..] = column values
         int first_col = 2;
 
-        if (sqlite3_value_type(argv[0]) == SQLITE_NULL) {
+        if (argv[0].is_null()) {
             // INSERT
             Row row;
             row.rowid = next_rowid_++;
             for (int i = first_col; i < argc; ++i) {
-                row.values.push_back(Value::from_sqlite3_value(argv[i]));
+                row.values.push_back(argv[i]);
             }
             rows_.push_back(std::move(row));
             *p_rowid = row.rowid;
             return SQLITE_OK;
         } else {
             // UPDATE
-            int64_t old_rowid = sqlite3_value_int64(argv[0]);
+            int64_t old_rowid = argv[0].as_int64();
             for (auto& r : rows_) {
                 if (r.rowid == old_rowid) {
                     r.values.clear();
                     for (int i = first_col; i < argc; ++i) {
-                        r.values.push_back(Value::from_sqlite3_value(argv[i]));
+                        r.values.push_back(argv[i]);
                     }
                     break;
                 }

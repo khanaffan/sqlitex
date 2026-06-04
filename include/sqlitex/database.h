@@ -40,7 +40,18 @@ enum class OpenFlag : int {
     PrivateCache = SQLITE_OPEN_PRIVATECACHE,
 };
 
-using OpenFlags = int; // bitmask of OpenFlag values
+/// Bitmask of OpenFlag values.  Supports operator| between flags.
+using OpenFlags = int;
+
+inline OpenFlags operator|(OpenFlag a, OpenFlag b) noexcept {
+    return static_cast<int>(a) | static_cast<int>(b);
+}
+inline OpenFlags operator|(OpenFlags a, OpenFlag b) noexcept {
+    return a | static_cast<int>(b);
+}
+inline OpenFlags operator|(OpenFlag a, OpenFlags b) noexcept {
+    return static_cast<int>(a) | b;
+}
 
 // ============================================================================
 // Database — RAII wrapper for sqlite3*
@@ -74,14 +85,14 @@ class SQLITEX_EXPORT Database {
     void close() noexcept;
 
     explicit operator bool() const noexcept {
-        return db_ != nullptr;
+        return db_holder_ != nullptr;
     }
 
     sqlite3* handle() noexcept {
-        return db_;
+        return db_holder_.get();
     }
     const sqlite3* handle() const noexcept {
-        return db_;
+        return db_holder_.get();
     }
 
     // === Query Execution ===
@@ -260,14 +271,6 @@ class SQLITEX_EXPORT Database {
         }
     };
     std::unique_ptr<sqlite3, Deleter> db_holder_{};
-    sqlite3* db_ = nullptr;
-
-    // Keep callback contexts alive for the lifetime of the database.
-    // Each registered function stores its ScalarFunction/etc. here via
-    // sqlite3_create_function_v2's user_data + xDestroy callback.
-    // The vector holds raw void* pointers that are freed by xDestroy.
-    // We don't need to track them explicitly because SQLite manages cleanup,
-    // but we store them so we can manage unregistration if needed.
 };
 
 // ============================================================================
@@ -286,7 +289,13 @@ std::optional<T> Database::query_value(std::string_view sql) {
     } else if constexpr (std::is_same_v<T, double>) {
         return stmt.column_double(0);
     } else if constexpr (std::is_same_v<T, std::string_view>) {
-        return stmt.column_text(0);
+        // std::string_view would dangle: the Statement is destroyed on return.
+        // Use query_value<std::string> instead.
+        static_assert(!std::is_same_v<T, std::string_view>,
+                      "query_value<std::string_view> is unsafe: the returned "
+                      "view would dangle because the Statement is destroyed "
+                      "when this function returns. "
+                      "Use query_value<std::string> instead.");
     } else if constexpr (std::is_same_v<T, std::string>) {
         return std::string(stmt.column_text(0));
     } else {

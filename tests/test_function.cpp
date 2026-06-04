@@ -1,5 +1,7 @@
 #include <sqlitex/sqlitex.h>
 
+#include "test_helpers.h"
+
 #include <gtest/gtest.h>
 
 #include <string>
@@ -8,26 +10,7 @@
 namespace sqlitex {
 namespace {
 
-// ============================================================================
-// Helpers
-// ============================================================================
-
-class TempFile {
-    public:
-    TempFile() {
-        path_ = "/tmp/sqlitex_test_" + std::to_string(counter_++) + ".db";
-    }
-    ~TempFile() {
-        std::remove(path_.c_str());
-    }
-    const std::string& path() const {
-        return path_;
-    }
-
-    private:
-    std::string path_;
-    static inline int counter_ = 0;
-};
+using test::TempFile;
 
 // ============================================================================
 // Scalar Functions

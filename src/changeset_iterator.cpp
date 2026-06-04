@@ -162,30 +162,32 @@ bool ChangesetIterator::old_is_null(int i) const {
 }
 
 std::optional<int64_t> ChangesetIterator::old_int(int i) const {
-    if (old_is_null(i))
+    sqlite3_value* val = old_value_raw(i);
+    if (val == nullptr || sqlite3_value_type(val) == SQLITE_NULL)
         return std::nullopt;
-    return sqlite3_value_int64(old_value_raw(i));
+    return sqlite3_value_int64(val);
 }
 
 std::optional<double> ChangesetIterator::old_double(int i) const {
-    if (old_is_null(i))
+    sqlite3_value* val = old_value_raw(i);
+    if (val == nullptr || sqlite3_value_type(val) == SQLITE_NULL)
         return std::nullopt;
-    return sqlite3_value_double(old_value_raw(i));
+    return sqlite3_value_double(val);
 }
 
 std::optional<std::string> ChangesetIterator::old_text(int i) const {
-    if (old_is_null(i))
-        return std::nullopt;
     sqlite3_value* val = old_value_raw(i);
+    if (val == nullptr || sqlite3_value_type(val) == SQLITE_NULL)
+        return std::nullopt;
     const auto* text = reinterpret_cast<const char*>(sqlite3_value_text(val));
     int const n = sqlite3_value_bytes(val);
     return std::string(text, static_cast<std::size_t>(n));
 }
 
 std::optional<std::vector<uint8_t>> ChangesetIterator::old_blob(int i) const {
-    if (old_is_null(i))
-        return std::nullopt;
     sqlite3_value* val = old_value_raw(i);
+    if (val == nullptr || sqlite3_value_type(val) == SQLITE_NULL)
+        return std::nullopt;
     const auto* data = static_cast<const uint8_t*>(sqlite3_value_blob(val));
     int n = sqlite3_value_bytes(val);
     return std::vector<uint8_t>(data, data + n);
@@ -204,30 +206,32 @@ bool ChangesetIterator::new_is_null(int i) const {
 }
 
 std::optional<int64_t> ChangesetIterator::new_int(int i) const {
-    if (new_is_null(i))
+    sqlite3_value* val = new_value_raw(i);
+    if (val == nullptr || sqlite3_value_type(val) == SQLITE_NULL)
         return std::nullopt;
-    return sqlite3_value_int64(new_value_raw(i));
+    return sqlite3_value_int64(val);
 }
 
 std::optional<double> ChangesetIterator::new_double(int i) const {
-    if (new_is_null(i))
+    sqlite3_value* val = new_value_raw(i);
+    if (val == nullptr || sqlite3_value_type(val) == SQLITE_NULL)
         return std::nullopt;
-    return sqlite3_value_double(new_value_raw(i));
+    return sqlite3_value_double(val);
 }
 
 std::optional<std::string> ChangesetIterator::new_text(int i) const {
-    if (new_is_null(i))
-        return std::nullopt;
     sqlite3_value* val = new_value_raw(i);
+    if (val == nullptr || sqlite3_value_type(val) == SQLITE_NULL)
+        return std::nullopt;
     const auto* text = reinterpret_cast<const char*>(sqlite3_value_text(val));
     int const n = sqlite3_value_bytes(val);
     return std::string(text, static_cast<std::size_t>(n));
 }
 
 std::optional<std::vector<uint8_t>> ChangesetIterator::new_blob(int i) const {
-    if (new_is_null(i))
-        return std::nullopt;
     sqlite3_value* val = new_value_raw(i);
+    if (val == nullptr || sqlite3_value_type(val) == SQLITE_NULL)
+        return std::nullopt;
     const auto* data = static_cast<const uint8_t*>(sqlite3_value_blob(val));
     int n = sqlite3_value_bytes(val);
     return std::vector<uint8_t>(data, data + n);

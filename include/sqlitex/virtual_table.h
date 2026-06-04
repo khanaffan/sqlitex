@@ -236,12 +236,19 @@ class SQLITEX_EXPORT VirtualTable {
     // --- Mutating operations (read-write vtables only) ---
 
     /// Insert, update, or delete a row.
-    /// \param argv[0] = rowid to delete (DELETE), NULL (INSERT), or old rowid
-    /// (UPDATE)
-    /// \param argv[1..] = new column values (INSERT/UPDATE)
-    /// \param p_rowid  On INSERT, set to the new rowid.
+    ///
+    /// The argv vector mirrors the raw SQLite xUpdate arguments:
+    /// - argv[0] : old rowid to delete (DELETE/UPDATE), or NULL Value for INSERT
+    /// - argv[1] : new rowid (INSERT/UPDATE), or NULL Value
+    /// - argv[2..] : new column values (INSERT/UPDATE)
+    ///
+    /// \param argc    Number of elements in argv (same as argc from SQLite).
+    /// \param argv    Typed Value wrappers for all xUpdate arguments.
+    /// \param p_rowid On INSERT, set to the new rowid.
+    ///
     /// Default returns SQLITE_READONLY (making the table read-only).
-    virtual int update(int argc, sqlite3_value** argv, int64_t* p_rowid) {
+    virtual int update(int argc, const std::vector<Value>& argv,
+                       int64_t* p_rowid) {
         (void)argc;
         (void)argv;
         (void)p_rowid;

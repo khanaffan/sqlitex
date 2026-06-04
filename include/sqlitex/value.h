@@ -45,7 +45,10 @@ class SQLITEX_EXPORT Value {
     }
     explicit Value(std::string_view v) : data_(std::string(v)) {
     }
-    Value(const char* v) : data_(std::string(v)) {
+    // Construct from a null-terminated C string.  Passing nullptr is safe
+    // (treated as empty string).  The constructor is explicit to prevent
+    // accidental implicit conversions from const char*.
+    explicit Value(const char* v) : data_(std::string(v != nullptr ? v : "")) {
     }
 
     explicit Value(const void* blob, int size)
@@ -121,8 +124,21 @@ class SQLITEX_EXPORT Value {
 
     int64_t as_int64() const;
     double as_double() const;
-    std::string_view as_text() const;
     const std::vector<uint8_t>& as_blob() const;
+
+    /// Convert to a text view.
+    ///
+    /// For Text values the returned view is backed by the internal std::string
+    /// and is valid until this Value is modified or destroyed.
+    ///
+    /// \warning For Integer and Float values the method uses a thread-local
+    /// buffer to format the number.  The returned view is valid only until the
+    /// next call to as_text() on **any** Integer or Float Value on the same
+    /// thread.  If you need a stable copy, call std::string(v.as_text()) or
+    /// use as_int64() / as_double() directly.
+    ///
+    /// Throws std::bad_variant_access if the value is Null or Blob.
+    std::string_view as_text() const;
 
     // --- Factory from sqlite3_value* ---
 

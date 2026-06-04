@@ -53,12 +53,12 @@ class SQLITEX_EXPORT Session {
     // === Control ===
 
     /// Enable or disable change tracking.
-    /// @return Previous enable state (0 = disabled, 1 = enabled).
-    int enable(bool enabled = true);
+    /// @return Previous enable state (true = was enabled, false = was disabled).
+    bool enable(bool enabled = true);
 
     /// Enable or disable recording of indirect changes (trigger-fired).
     /// @return Previous indirect state.
-    int set_indirect(bool indirect = true);
+    bool set_indirect(bool indirect = true);
 
     // === Table Attachment ===
 
@@ -81,10 +81,17 @@ class SQLITEX_EXPORT Session {
     [[nodiscard]] Patchset patchset();
 
     /// Compute a diff of a single table against another attached database
-    /// on the same connection.
-    /// @param table_name  Table to diff
-    /// @param from_db     Name of the attached database with the reference
-    /// schema
+    /// on the same connection, and return the accumulated changeset.
+    ///
+    /// \param table_name  Table to diff.
+    /// \param from_db     Name of the attached database with the reference
+    ///                    schema (typically an ATTACH-ed database).
+    ///
+    /// \warning sqlite3session_diff **appends** the diff to this session's
+    /// existing change set rather than replacing it.  The returned Changeset
+    /// will contain all previously recorded changes **plus** the diff.
+    /// To obtain only the diff, call this on a freshly created session with
+    /// no other changes attached to it.
     [[nodiscard]] Changeset diff(std::string_view table_name,
                                  std::string_view from_db = "main");
 

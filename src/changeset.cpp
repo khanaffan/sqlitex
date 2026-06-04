@@ -21,7 +21,7 @@ Changeset::Changeset(void* data, int size) noexcept : data_(data), size_(size) {
 }
 
 Changeset Changeset::copy_from(const void* src, int size) {
-    void* buf = sqlite3_malloc(static_cast<sqlite3_uint64>(size));
+    void* buf = sqlite3_malloc64(static_cast<sqlite3_uint64>(size));
     if (!buf && size > 0)
         throw std::bad_alloc();
     if ((buf != nullptr) && size > 0) {
