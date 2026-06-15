@@ -57,7 +57,7 @@ class SQLITEX_EXPORT Session {
     bool enable(bool enabled = true);
 
     /// Enable or disable recording of indirect changes (trigger-fired).
-    /// @return Previous indirect state.
+    /// @return Previous indirect state (true = was enabled, false = was disabled).
     bool set_indirect(bool indirect = true);
 
     // === Table Attachment ===

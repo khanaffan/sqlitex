@@ -77,12 +77,17 @@ Session& Session::operator=(Session&& other) noexcept {
 // ============================================================================
 
 bool Session::enable(bool enabled) {
-    int const prev = sqlite3session_enable(session_, enabled ? 1 : 0);
+    // Query the current state without modifying it (negative argument), then
+    // apply the requested state. sqlite3session_enable() returns the state
+    // *after* the call, so a positive argument cannot report the prior state.
+    int const prev = sqlite3session_enable(session_, -1);
+    sqlite3session_enable(session_, enabled ? 1 : 0);
     return prev != 0;
 }
 
 bool Session::set_indirect(bool indirect) {
-    int const prev = sqlite3session_indirect(session_, indirect ? 1 : 0);
+    int const prev = sqlite3session_indirect(session_, -1);
+    sqlite3session_indirect(session_, indirect ? 1 : 0);
     return prev != 0;
 }
 

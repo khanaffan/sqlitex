@@ -69,24 +69,24 @@ TEST_F(SessionTest, EnableReturnsPreviousState) {
     Session session(db_, "main");
     session.attach_all();
 
-    // Disable and verify changes are not tracked
-    session.enable(false);
+    // Sessions are enabled by default; disabling returns the prior (enabled) state.
+    EXPECT_TRUE(session.enable(false));
     db_.execute("INSERT INTO items VALUES (99, 'ignored', 1)");
     EXPECT_TRUE(session.is_empty());
 
-    // Re-enable and verify changes are tracked
-    session.enable(true);
+    // Re-enable; the prior state was disabled.
+    EXPECT_FALSE(session.enable(true));
     db_.execute("INSERT INTO items VALUES (100, 'tracked', 2)");
     EXPECT_FALSE(session.is_empty());
 }
 
 TEST_F(SessionTest, IndirectFlag) {
     Session session(db_, "main");
-    // Indirect tracking default varies — just verify it's callable
-    bool prev = session.set_indirect(true);
-    EXPECT_TRUE(prev == true || prev == false);
-    prev = session.set_indirect(false);
-    EXPECT_TRUE(prev == true || prev == false);
+    // set_indirect() returns the previous state. After setting true, the
+    // next call observing the prior state must see true.
+    session.set_indirect(true);
+    EXPECT_TRUE(session.set_indirect(false));
+    EXPECT_FALSE(session.set_indirect(true));
 }
 
 // ============================================================================
