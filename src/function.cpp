@@ -88,7 +88,7 @@ Value Value::from_sqlite3_value(sqlite3_value* val) {
     int const type = sqlite3_value_type(val);
     switch (type) {
     case SQLITE_INTEGER:
-        return Value(sqlite3_value_int64(val));
+        return Value(static_cast<int64_t>(sqlite3_value_int64(val)));
     case SQLITE_FLOAT:
         return Value(sqlite3_value_double(val));
     case SQLITE_TEXT: {
