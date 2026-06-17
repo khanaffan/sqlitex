@@ -59,24 +59,35 @@ int sqlite3_bcv_destroy(sqlite3_bcv*);
 // Azurite helpers
 // ============================================================================
 
+#ifdef _WIN32
+#define SQLITEX_POPEN _popen
+#define SQLITEX_PCLOSE _pclose
+#define SQLITEX_DEVNULL "NUL"
+#else
+#define SQLITEX_POPEN popen
+#define SQLITEX_PCLOSE pclose
+#define SQLITEX_DEVNULL "/dev/null"
+#endif
+
 bool is_azurite_running() {
-    std::string const cmd =
-        "curl -s -o /dev/null -w '%{http_code}' --connect-timeout 1 "
-        "--max-time 2 'http://" +
+    // curl exits 0 as soon as it gets any HTTP response (Azurite answers the
+    // bare account URL with 400, which still means it is up); a non-zero exit
+    // means the connection was refused or timed out. Checking the exit status
+    // avoids shell-specific quoting of the -w format string across platforms.
+    const std::string cmd =
+        std::string("curl -s -o ") + SQLITEX_DEVNULL +
+        " --connect-timeout 1 --max-time 2 \"http://" +
         std::string(kAzuriteHost) + ":" + std::to_string(kAzuritePort) + "/" +
-        kAzuriteAccount + "' 2>/dev/null";
-    FILE* pipe = popen(cmd.c_str(), "r");
+        kAzuriteAccount + "\" 2>" + SQLITEX_DEVNULL;
+    FILE* pipe = SQLITEX_POPEN(cmd.c_str(), "r");
     if (pipe == nullptr) {
         return false;
     }
     std::array<char, 16> buf = {};
-    const size_t n = fread(buf.data(), 1, buf.size() - 1, pipe);
-    pclose(pipe);
-    try {
-        return std::stoi(std::string(buf.data(), n)) > 0;
-    } catch (...) {
-        return false;
+    while (fread(buf.data(), 1, buf.size(), pipe) > 0) {
+        // Drain any output so the child process can exit cleanly.
     }
+    return SQLITEX_PCLOSE(pipe) == 0;
 }
 
 bool create_container(const std::string& name) {
