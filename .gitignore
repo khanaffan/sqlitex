@@ -57,3 +57,5 @@ examples/changegroup_merge
 examples/bcvfs_basic
 tests/sqlitex_tests
 src/blockcachevfsd
+build-bcvfs/
+build*/
