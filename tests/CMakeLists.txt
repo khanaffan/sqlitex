@@ -22,6 +22,10 @@ if(SQLITEX_HAS_SESSION)
     )
 endif()
 
+if(SQLITEX_BCVFS)
+    list(APPEND TEST_SOURCES test_bcvfs_integration.cpp)
+endif()
+
 # Create the test executable
 add_executable(sqlitex_tests ${TEST_SOURCES})
 
