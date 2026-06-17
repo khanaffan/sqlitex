@@ -261,17 +261,22 @@ TEST_F(BcvfsIntegrationTest, TwoInstancesSameCache) {
     // cache dir because bcVFS takes exclusive ownership of the directory.
     std::string const cache2 = cache_dir_ + "-2";
     std::filesystem::create_directories(cache2);
-    Bcvfs bcvfs2(cache2, "bcvfs-b");
-    bcvfs2.set_auth_callback(
-        [](std::string_view, std::string_view, std::string_view,
-           std::string& token) -> bool {
-            token = kAzuriteKey;
-            return true;
-        });
-    // Re-attach same container under different alias
-    EXPECT_NO_THROW(
-        bcvfs2.attach(kStorage, kAzuriteAccount, container_name_, "test2"));
-    std::filesystem::remove_all(cache2);
+    {
+        Bcvfs bcvfs2(cache2, "bcvfs-b");
+        bcvfs2.set_auth_callback(
+            [](std::string_view, std::string_view, std::string_view,
+               std::string& token) -> bool {
+                token = kAzuriteKey;
+                return true;
+            });
+        // Re-attach same container under different alias
+        EXPECT_NO_THROW(
+            bcvfs2.attach(kStorage, kAzuriteAccount, container_name_, "test2"));
+    }
+    // bcvfs2 is destroyed above so it releases its handles on the cache
+    // directory; on Windows the files cannot be removed while still open.
+    std::error_code ec;
+    std::filesystem::remove_all(cache2, ec);
 }
 
 // ============================================================================
