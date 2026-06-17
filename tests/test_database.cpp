@@ -325,5 +325,91 @@ TEST(DatabaseTest, CloseAndReopen) {
     }
 }
 
+// ============================================================================
+// total_changes
+// ============================================================================
+
+TEST(DatabaseTest, TotalChanges) {
+    Database db(":memory:");
+    db.execute("CREATE TABLE t (id INTEGER PRIMARY KEY)");
+    db.execute("INSERT INTO t VALUES (1), (2), (3)");
+    // total_changes is cumulative across all operations on the connection
+    EXPECT_GE(db.total_changes(), 3);
+}
+
+// ============================================================================
+// db_filename
+// ============================================================================
+
+TEST(DatabaseTest, DbFilename) {
+    TempFile tmp;
+    Database db(tmp.path());
+    auto name = db.db_filename("main");
+    // On macOS, /tmp is a symlink to /private/tmp, so SQLite may resolve
+    // the path differently. Verify it's non-empty and contains the filename.
+    EXPECT_FALSE(name.empty());
+    EXPECT_NE(name.find("sqlitex_test_"), std::string_view::npos);
+}
+
+TEST(DatabaseTest, DbFilenameMemory) {
+    Database db(":memory:");
+    auto name = db.db_filename("main");
+    // sqlite3_db_filename returns empty string for :memory: databases
+    EXPECT_TRUE(name.empty());
+}
+
+// ============================================================================
+// query_value<double>
+// ============================================================================
+
+TEST(DatabaseTest, QueryValueDouble) {
+    Database db(":memory:");
+    db.execute("CREATE TABLE t (val REAL)");
+    db.execute("INSERT INTO t VALUES (3.14)");
+
+    auto val = db.query_value<double>("SELECT val FROM t");
+    ASSERT_TRUE(val.has_value());
+    EXPECT_DOUBLE_EQ(*val, 3.14);
+}
+
+TEST(DatabaseTest, QueryValueDoubleEmpty) {
+    Database db(":memory:");
+    db.execute("CREATE TABLE t (val REAL)");
+    auto val = db.query_value<double>("SELECT val FROM t WHERE 1 = 0");
+    EXPECT_FALSE(val.has_value());
+}
+
+// ============================================================================
+// exec() with non-std::exception callback
+// ============================================================================
+
+TEST(DatabaseTest, ExecCallbackThrowsNonStdException) {
+    Database db(":memory:");
+    db.execute("CREATE TABLE t (id INTEGER)");
+    db.execute("INSERT INTO t VALUES (1)");
+
+    class CustomException {};
+    EXPECT_THROW(db.exec("SELECT id FROM t",
+                          [](int, char**, char**) -> bool {
+                              throw CustomException();
+                          }),
+                 CustomException);
+}
+
+// ============================================================================
+// Open with VFS (validates the VFS parameter path)
+// ============================================================================
+
+TEST(DatabaseTest, OpenWithVfs) {
+    // Open with default (nullptr) VFS — should succeed
+    Database db(":memory:", static_cast<int>(OpenFlag::ReadWrite) |
+                                  static_cast<int>(OpenFlag::Create),
+                "");
+    EXPECT_TRUE(db);
+    db.execute("CREATE TABLE t (x INTEGER)");
+    auto rows = db.query("SELECT COUNT(*) FROM t");
+    EXPECT_EQ(rows[0][0].as_int64(), 0);
+}
+
 } // anonymous namespace
 } // namespace sqlitex

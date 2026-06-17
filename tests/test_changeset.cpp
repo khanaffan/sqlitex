@@ -712,5 +712,123 @@ TEST_F(ChangesetTest, ApplyV3NullFilterBehavesLikeApplyV2) {
     EXPECT_EQ(*count, 2);
 }
 
+// ============================================================================
+// End-to-end replication: Session → Changeset → Apply → Verify
+// ============================================================================
+
+TEST_F(ChangesetTest, EndToEndReplication) {
+    // Create a replica with the same initial state
+    Database replica(":memory:");
+    replica.execute(R"(
+        CREATE TABLE items (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            quantity INTEGER DEFAULT 0
+        )
+    )");
+    replica.execute("INSERT INTO items VALUES (1, 'Widget', 10)");
+    replica.execute("INSERT INTO items VALUES (2, 'Gadget', 5)");
+
+    // Perform a mix of operations on the source (db_)
+    Session session(db_, "main");
+    session.enable(true);
+    session.attach_all();
+    db_.execute("INSERT INTO items VALUES (3, 'Replicated', 100)");
+    db_.execute("UPDATE items SET quantity = 42 WHERE id = 1");
+    db_.execute("DELETE FROM items WHERE id = 2");
+
+    Changeset cs = session.changeset();
+
+    // Apply to replica
+    cs.apply(replica, [](ConflictType, const ChangesetIterator&) {
+        return ChangesetAction::Abort;
+    });
+
+    // Verify replica matches source
+    auto src_rows = db_.query("SELECT * FROM items ORDER BY id");
+    auto rep_rows = replica.query("SELECT * FROM items ORDER BY id");
+    ASSERT_EQ(src_rows.size(), rep_rows.size());
+    for (std::size_t i = 0; i < src_rows.size(); ++i) {
+        EXPECT_EQ(src_rows[i][0], rep_rows[i][0]); // id
+        EXPECT_EQ(src_rows[i][1], rep_rows[i][1]); // name
+        EXPECT_EQ(src_rows[i][2], rep_rows[i][2]); // quantity
+    }
+}
+
+// ============================================================================
+// apply_v2 with Invert flag
+// ============================================================================
+
+TEST_F(ChangesetTest, ApplyV2WithNoSavepoint) {
+    // Test apply_v2 with NoSavepoint flag (no implicit SAVEPOINT wrapping).
+    Database target(":memory:");
+    target.execute(
+        "CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT, quantity "
+        "INTEGER)");
+    target.execute("INSERT INTO items VALUES (1, 'Widget', 10)");
+
+    Session session(db_, "main");
+    session.enable(true);
+    session.attach_all();
+    db_.execute("INSERT INTO items VALUES (5, 'NoSavepointTest', 100)");
+
+    Changeset cs = session.changeset();
+
+    cs.apply_v2(target,
+                [](ConflictType, const ChangesetIterator&) -> ChangesetAction {
+                    return ChangesetAction::Abort;
+                },
+                static_cast<int>(ApplyFlag::NoSavepoint));
+
+    auto count = target.query_value<int64_t>("SELECT COUNT(*) FROM items");
+    EXPECT_EQ(*count, 2);
+}
+
+TEST_F(ChangesetTest, ApplyV2InvertViaInvertMethod) {
+    // The Invert flag on apply_v2 requires SQLite builds that support
+    // SQLITE_CHANGESETAPPLY_INVERT in sqlite3changeset_apply_v2.
+    // As an alternative, invert the changeset first, then apply normally.
+    Database target(":memory:");
+    target.execute(
+        "CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT, quantity "
+        "INTEGER)");
+    target.execute("INSERT INTO items VALUES (1, 'Widget', 10)");
+    target.execute("INSERT INTO items VALUES (2, 'Gadget', 5)");
+
+    // Source inserts a new row
+    Session session(db_, "main");
+    session.enable(true);
+    session.attach_all();
+    db_.execute("INSERT INTO items VALUES (3, 'NewRow', 100)");
+
+    Changeset cs = session.changeset();
+
+    // Invert first, then apply — INSERT becomes DELETE
+    Changeset inverted = cs.invert();
+    inverted.apply(target,
+                   [](ConflictType, const ChangesetIterator&) -> ChangesetAction {
+                       return ChangesetAction::Omit;
+                   });
+
+    // Target still has 2 rows (the inverted INSERT tries to DELETE id=3
+    // which doesn't exist in target, so it's omitted)
+    auto count = target.query_value<int64_t>("SELECT COUNT(*) FROM items");
+    EXPECT_EQ(*count, 2);
+}
+
+// ============================================================================
+// ChangesetIterator::from_stream with error callback
+// ============================================================================
+
+TEST_F(ChangesetTest, IteratorFromStreamError) {
+    // Create a streaming input that returns an error
+    StreamInputFunc error_input = [](void*, int) -> int {
+        return 1; // Signal error
+    };
+
+    auto iter = ChangesetIterator::from_stream(std::move(error_input));
+    EXPECT_THROW(iter.next(), Error);
+}
+
 } // anonymous namespace
 } // namespace sqlitex

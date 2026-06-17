@@ -436,8 +436,11 @@ static sqlite3_module make_module() {
 
 ModuleRegistration create_module_impl(
     sqlite3* db, std::string_view name,
-    std::function<std::unique_ptr<VirtualTable>(/*unused*/)> factory,
-    int /*flags*/) {
+    std::function<std::unique_ptr<VirtualTable>()> factory,
+    int flags) {
+    // sqlite3_create_module_v2 does not accept a flags parameter.
+    // SQLITE_VTAB_INNOCUOUS must be set on the xConnect method instead.
+    (void)flags;
     auto mod_ctx = std::make_shared<detail::ModuleCtx>();
     mod_ctx->module = detail::make_module();
     mod_ctx->factory = std::move(factory);

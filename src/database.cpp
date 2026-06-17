@@ -395,7 +395,7 @@ void Database::create_function(std::string_view name, int n_args,
 
 void Database::create_aggregate(
     std::string_view name, int n_args,
-    std::function<std::unique_ptr<AggregateFunction>(/*unused*/)> factory,
+    std::function<std::unique_ptr<AggregateFunction>()> factory,
     int flags) {
     auto* ctx = new std::function<std::unique_ptr<AggregateFunction>()>(
         std::move(factory));
@@ -408,7 +408,7 @@ void Database::create_aggregate(
 
 void Database::create_window_function(
     std::string_view name, int n_args,
-    std::function<std::unique_ptr<WindowFunction>(/*unused*/)> factory,
+    std::function<std::unique_ptr<WindowFunction>()> factory,
     int flags) {
     auto* ctx = new std::function<std::unique_ptr<WindowFunction>()>(
         std::move(factory));

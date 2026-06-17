@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -249,6 +250,62 @@ TEST_F(StatementTest, MoveAssignment) {
     EXPECT_TRUE(stmt2);
     stmt2.step();
     EXPECT_EQ(stmt2.column_int64(0), 1);
+}
+
+// ============================================================================
+// Statement metadata — remaining accessors
+// ============================================================================
+
+TEST_F(StatementTest, IsExplain) {
+    auto stmt = db_.prepare("SELECT * FROM t");
+    EXPECT_FALSE(stmt.is_explain());
+}
+
+TEST_F(StatementTest, ExpandedSql) {
+    auto stmt = db_.prepare("SELECT * FROM t WHERE id = ?");
+    stmt.bind(1, 42);
+    auto expanded = stmt.expanded_sql();
+    EXPECT_FALSE(expanded.empty());
+}
+
+TEST_F(StatementTest, ExpandedSqlNoBinding) {
+    auto stmt = db_.prepare("SELECT * FROM t");
+    auto expanded = stmt.expanded_sql();
+    EXPECT_FALSE(expanded.empty());
+}
+
+TEST_F(StatementTest, ColumnDecltype) {
+    auto stmt = db_.prepare("SELECT id, name, score FROM t");
+    // For in-memory databases, decltype may or may not be available,
+    // but the call itself should not crash.
+    auto dt0 = stmt.column_decltype(0);
+    auto dt1 = stmt.column_decltype(1);
+    auto dt2 = stmt.column_decltype(2);
+    // At minimum, the calls succeed and return something (possibly empty)
+    (void)dt0;
+    (void)dt1;
+    (void)dt2;
+}
+
+// ============================================================================
+// Statement::database() on null/default-constructed statement
+// ============================================================================
+
+TEST(StatementEdgeCaseTest, DatabaseOnDefaultConstructedStatement) {
+    Statement stmt;
+    EXPECT_FALSE(stmt);
+    EXPECT_THROW({ stmt.database(); }, std::logic_error);
+}
+
+TEST(StatementEdgeCaseTest, DatabaseOnMovedFromStatement) {
+    Database db(":memory:");
+    db.execute("CREATE TABLE t (x INTEGER)");
+    auto stmt1 = db.prepare("SELECT * FROM t");
+    Statement stmt2(std::move(stmt1));
+    EXPECT_TRUE(stmt2);
+    EXPECT_NO_THROW(stmt2.database());
+    // stmt1 is moved-from, should throw
+    EXPECT_THROW({ stmt1.database(); }, std::logic_error);
 }
 
 } // anonymous namespace

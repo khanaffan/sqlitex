@@ -335,5 +335,42 @@ TEST(FunctionTest, ScalarDeterministic) {
     EXPECT_EQ(*val, 10);
 }
 
+// ============================================================================
+// FunctionContext::set_subtype
+// ============================================================================
+
+TEST(FunctionTest, SetSubtype) {
+    Database db(":memory:");
+    db.create_function(
+        "json_val", 1,
+        [](FunctionContext& ctx, const std::vector<Value>& args) {
+            ctx.set_result(args[0].as_text());
+            // Mark as JSON subtype (SQLITE_RESULT_SUBTYPE must be set
+            // so sqlite3_result_subtype takes effect)
+            ctx.set_subtype(74); // 'J' = JSON subtype marker
+        },
+        SQLITE_UTF8 | SQLITE_RESULT_SUBTYPE);
+
+    // The function should execute without error
+    auto val = db.query_value<std::string>("SELECT json_val('{\"a\":1}')");
+    ASSERT_TRUE(val.has_value());
+    EXPECT_EQ(*val, "{\"a\":1}");
+}
+
+TEST(FunctionTest, SetSubtypeZero) {
+    Database db(":memory:");
+    db.create_function(
+        "zero_sub", 0,
+        [](FunctionContext& ctx, const std::vector<Value>&) {
+            ctx.set_result(0);
+            ctx.set_subtype(0);
+        },
+        SQLITE_UTF8 | SQLITE_RESULT_SUBTYPE);
+
+    auto val = db.query_value<int64_t>("SELECT zero_sub()");
+    ASSERT_TRUE(val.has_value());
+    EXPECT_EQ(*val, 0);
+}
+
 } // namespace
 } // namespace sqlitex
