@@ -7,18 +7,21 @@ on:
     branches: [main]
 
 jobs:
+  # ============================================================================
+  # Core build: library, tests and examples without bcVFS, across all platforms.
+  # ============================================================================
   build:
+    name: build (${{ matrix.os }}, ${{ matrix.build_type }}, shared=${{ matrix.shared }})
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         build_type: [Debug, Release]
         shared: [ON, OFF]
-        # Skip shared builds on macOS to keep matrix manageable
+        # Skip shared builds on macOS/Windows to keep the matrix manageable.
         exclude:
           - os: macos-latest
             shared: ON
-          # bcVFS requires curl/OpenSSL; skip on Windows for now
           - os: windows-latest
             shared: ON
 
@@ -35,8 +38,7 @@ jobs:
 
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
-        run: |
-          brew install curl openssl
+        run: brew install curl openssl@3
 
       - name: Configure CMake
         run: >
@@ -51,36 +53,56 @@ jobs:
         run: cmake --build build --config ${{ matrix.build_type }} --parallel
 
       - name: Test
-        run: ctest --test-dir build --output-on-failure --parallel
+        run: ctest --test-dir build --build-config ${{ matrix.build_type }} --output-on-failure --parallel
 
   # ============================================================================
-  # Additional job: build with SQLITEX_BCVFS=ON (Linux only)
-  # Runs bcVFS integration tests against an Azurite storage emulator.
+  # bcVFS build: SQLITEX_BCVFS=ON with the bcVFS integration tests run against
+  # an Azurite storage emulator. Runs on Linux, macOS and Windows.
   # ============================================================================
   build-bcvfs:
-    runs-on: ubuntu-latest
+    name: bcVFS + Azurite (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev libssl-dev
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install curl openssl@3
+
+      - name: Install dependencies (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: vcpkg install curl openssl
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Install and start Azurite
+      - name: Install Azurite
+        run: npm install -g azurite
+
+      - name: Start Azurite (Linux/macOS)
+        if: runner.os != 'Windows'
         run: |
-          npm install -g azurite
-          mkdir -p /tmp/azurite
-          azurite --silent --location /tmp/azurite &
-          # Wait for Azurite to be ready (max 15 seconds)
-          for i in $(seq 1 15); do
-            if curl -s http://127.0.0.1:10000/devstoreaccount1 2>/dev/null; then
+          mkdir -p "${RUNNER_TEMP}/azurite"
+          azurite --silent --location "${RUNNER_TEMP}/azurite" &
+          # Wait for Azurite to accept connections (it answers the bare account
+          # URL with HTTP 400, which still means the service is up).
+          for i in $(seq 1 30); do
+            if curl -s -o /dev/null http://127.0.0.1:10000/devstoreaccount1; then
               echo "Azurite ready on attempt $i"
               break
             fi
@@ -88,7 +110,30 @@ jobs:
             sleep 1
           done
 
-      - name: Configure CMake (BCVFS=ON)
+      - name: Start Azurite (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP\azurite" | Out-Null
+          Start-Process -FilePath "azurite.cmd" -ArgumentList '--silent', '--location', "$env:RUNNER_TEMP\azurite"
+          for ($i = 1; $i -le 30; $i++) {
+            try {
+              Invoke-WebRequest -UseBasicParsing -TimeoutSec 2 -Uri http://127.0.0.1:10000/devstoreaccount1 | Out-Null
+              Write-Host "Azurite ready on attempt $i"
+              break
+            } catch {
+              # A non-2xx HTTP response (e.g. 400) still means Azurite is up.
+              if ($null -ne $_.Exception.Response) {
+                Write-Host "Azurite ready on attempt $i (HTTP status)"
+                break
+              }
+              Write-Host "Waiting for Azurite... attempt $i"
+              Start-Sleep -Seconds 1
+            }
+          }
+
+      - name: Configure CMake (Linux)
+        if: runner.os == 'Linux'
         run: >
           cmake -B build-bcvfs
           -DCMAKE_BUILD_TYPE=Debug
@@ -97,8 +142,31 @@ jobs:
           -DSQLITEX_BUILD_EXAMPLES=ON
           -DSQLITEX_BCVFS=ON
 
+      - name: Configure CMake (macOS)
+        if: runner.os == 'macOS'
+        run: >
+          cmake -B build-bcvfs
+          -DCMAKE_BUILD_TYPE=Debug
+          -DBUILD_SHARED_LIBS=OFF
+          -DSQLITEX_BUILD_TESTS=ON
+          -DSQLITEX_BUILD_EXAMPLES=ON
+          -DSQLITEX_BCVFS=ON
+          -DOPENSSL_ROOT_DIR=$(brew --prefix openssl@3)
+
+      - name: Configure CMake (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: >
+          cmake -B build-bcvfs
+          -DCMAKE_BUILD_TYPE=Debug
+          -DBUILD_SHARED_LIBS=OFF
+          -DSQLITEX_BUILD_TESTS=ON
+          -DSQLITEX_BUILD_EXAMPLES=ON
+          -DSQLITEX_BCVFS=ON
+          -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+
       - name: Build
-        run: cmake --build build-bcvfs --parallel
+        run: cmake --build build-bcvfs --config Debug --parallel
 
       - name: Test
-        run: ctest --test-dir build-bcvfs --output-on-failure --parallel
+        run: ctest --test-dir build-bcvfs --build-config Debug --output-on-failure --parallel

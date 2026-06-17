@@ -1,0 +1,1509 @@
+{
+  "tests": 279,
+  "name": "AllTests",
+  "testsuites": [
+    {
+      "name": "ErrorTest",
+      "tests": 13,
+      "testsuite": [
+        {
+          "name": "MapErrorCode",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_error.cpp",
+          "line": 14
+        },
+        {
+          "name": "ConstructFromSqliteRc",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_error.cpp",
+          "line": 31
+        },
+        {
+          "name": "ConstructFromErrorCode",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_error.cpp",
+          "line": 38
+        },
+        {
+          "name": "ExtendedErrorCode",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_error.cpp",
+          "line": 44
+        },
+        {
+          "name": "CatchAsBase",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_error.cpp",
+          "line": 54
+        },
+        {
+          "name": "CatchSpecific",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_error.cpp",
+          "line": 62
+        },
+        {
+          "name": "CatchAsStdException",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_error.cpp",
+          "line": 72
+        },
+        {
+          "name": "ThrowOnErrorOk",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_error.cpp",
+          "line": 84
+        },
+        {
+          "name": "ThrowOnErrorRow",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_error.cpp",
+          "line": 88
+        },
+        {
+          "name": "ThrowOnErrorDone",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_error.cpp",
+          "line": 92
+        },
+        {
+          "name": "ThrowOnErrorBusy",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_error.cpp",
+          "line": 96
+        },
+        {
+          "name": "ThrowOnErrorConstraint",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_error.cpp",
+          "line": 100
+        },
+        {
+          "name": "ChangesetApplyError",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_error.cpp",
+          "line": 109
+        }
+      ]
+    },
+    {
+      "name": "ValueTest",
+      "tests": 37,
+      "testsuite": [
+        {
+          "name": "DefaultConstruction",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_value.cpp",
+          "line": 15
+        },
+        {
+          "name": "NullConstruction",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_value.cpp",
+          "line": 21
+        },
+        {
+          "name": "IntegerConstruction",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_value.cpp",
+          "line": 26
+        },
+        {
+          "name": "Int64Construction",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_value.cpp",
+          "line": 32
+        },
+        {
+          "name": "DoubleConstruction",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_value.cpp",
+          "line": 38
+        },
+        {
+          "name": "StringConstruction",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_value.cpp",
+          "line": 44
+        },
+        {
+          "name": "StringViewConstruction",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_value.cpp",
+          "line": 50
+        },
+        {
+          "name": "CStringConstruction",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_value.cpp",
+          "line": 56
+        },
+        {
+          "name": "BlobConstruction",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_value.cpp",
+          "line": 62
+        },
+        {
+          "name": "RawBlobConstruction",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_value.cpp",
+          "line": 70
+        },
+        {
+          "name": "TypeEnum",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_value.cpp",
+          "line": 81
+        },
+        {
+          "name": "AsText",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_value.cpp",
+          "line": 92
+        },
+        {
+          "name": "AsInt64",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_value.cpp",
+          "line": 97
+        },
+        {
+          "name": "AsDouble",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_value.cpp",
+          "line": 102
+        },
+        {
+          "name": "IntPromotesToDouble",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_value.cpp",
+          "line": 107
+        },
+        {
+          "name": "EqualityNull",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_value.cpp",
+          "line": 116
+        },
+        {
+          "name": "EqualityInteger",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_value.cpp",
+          "line": 121
+        },
+        {
+          "name": "EqualityText",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_value.cpp",
+          "line": 126
+        },
+        {
+          "name": "EqualityCrossType",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_value.cpp",
+          "line": 131
+        },
+        {
+          "name": "EmptyBlob",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_value.cpp",
+          "line": 140
+        },
+        {
+          "name": "EmptyString",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_value.cpp",
+          "line": 146
+        },
+        {
+          "name": "NegativeInt64",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_value.cpp",
+          "line": 152
+        },
+        {
+          "name": "AsInt64FromDouble",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_value.cpp",
+          "line": 161
+        },
+        {
+          "name": "AsDoubleFromInt",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_value.cpp",
+          "line": 166
+        },
+        {
+          "name": "AsTextFromInteger",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_value.cpp",
+          "line": 171
+        },
+        {
+          "name": "AsTextFromDouble",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_value.cpp",
+          "line": 176
+        },
+        {
+          "name": "AsTextFromDoubleThenIntOnSameThread",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_value.cpp",
+          "line": 182
+        },
+        {
+          "name": "EqualityFloat",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_value.cpp",
+          "line": 198
+        },
+        {
+          "name": "EqualityBlob",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_value.cpp",
+          "line": 203
+        },
+        {
+          "name": "OperatorNotEqual",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_value.cpp",
+          "line": 211
+        },
+        {
+          "name": "BlobData",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_value.cpp",
+          "line": 220
+        },
+        {
+          "name": "AsBlob",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_value.cpp",
+          "line": 230
+        },
+        {
+          "name": "FromSqlite3ValueNull",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_value.cpp",
+          "line": 243
+        },
+        {
+          "name": "FromSqlite3ValueInteger",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_value.cpp",
+          "line": 252
+        },
+        {
+          "name": "FromSqlite3ValueFloat",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_value.cpp",
+          "line": 260
+        },
+        {
+          "name": "FromSqlite3ValueText",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_value.cpp",
+          "line": 268
+        },
+        {
+          "name": "FromSqlite3ValueBlob",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_value.cpp",
+          "line": 276
+        }
+      ]
+    },
+    {
+      "name": "DatabaseTest",
+      "tests": 33,
+      "testsuite": [
+        {
+          "name": "OpenInMemory",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_database.cpp",
+          "line": 19
+        },
+        {
+          "name": "OpenFile",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_database.cpp",
+          "line": 25
+        },
+        {
+          "name": "DefaultConstruction",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_database.cpp",
+          "line": 37
+        },
+        {
+          "name": "MoveConstruction",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_database.cpp",
+          "line": 42
+        },
+        {
+          "name": "MoveAssignment",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_database.cpp",
+          "line": 51
+        },
+        {
+          "name": "CantOpen",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_database.cpp",
+          "line": 59
+        },
+        {
+          "name": "ExecuteCreateTable",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_database.cpp",
+          "line": 69
+        },
+        {
+          "name": "ExecuteInsertAndQuery",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_database.cpp",
+          "line": 75
+        },
+        {
+          "name": "ExecuteBadSql",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_database.cpp",
+          "line": 86
+        },
+        {
+          "name": "PrepareStatement",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_database.cpp",
+          "line": 95
+        },
+        {
+          "name": "QueryReturnsRows",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_database.cpp",
+          "line": 112
+        },
+        {
+          "name": "QueryEmpty",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_database.cpp",
+          "line": 123
+        },
+        {
+          "name": "QueryValue",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_database.cpp",
+          "line": 130
+        },
+        {
+          "name": "QueryValueNull",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_database.cpp",
+          "line": 144
+        },
+        {
+          "name": "TransactionCommit",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_database.cpp",
+          "line": 155
+        },
+        {
+          "name": "TransactionAutoCommit",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_database.cpp",
+          "line": 170
+        },
+        {
+          "name": "TransactionRollbackOnException",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_database.cpp",
+          "line": 184
+        },
+        {
+          "name": "TransactionMove",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_database.cpp",
+          "line": 200
+        },
+        {
+          "name": "LastInsertRowid",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_database.cpp",
+          "line": 221
+        },
+        {
+          "name": "Changes",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_database.cpp",
+          "line": 230
+        },
+        {
+          "name": "ErrorCodeAndMessage",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_database.cpp",
+          "line": 237
+        },
+        {
+          "name": "BusyTimeout",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_database.cpp",
+          "line": 249
+        },
+        {
+          "name": "ExecCallbackCollectsRows",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_database.cpp",
+          "line": 258
+        },
+        {
+          "name": "ExecCallbackReturnFalseStopsEarly",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_database.cpp",
+          "line": 281
+        },
+        {
+          "name": "ExecCallbackExceptionPropagates",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_database.cpp",
+          "line": 298
+        },
+        {
+          "name": "CloseAndReopen",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_database.cpp",
+          "line": 314
+        },
+        {
+          "name": "TotalChanges",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_database.cpp",
+          "line": 332
+        },
+        {
+          "name": "DbFilename",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_database.cpp",
+          "line": 344
+        },
+        {
+          "name": "DbFilenameMemory",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_database.cpp",
+          "line": 354
+        },
+        {
+          "name": "QueryValueDouble",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_database.cpp",
+          "line": 365
+        },
+        {
+          "name": "QueryValueDoubleEmpty",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_database.cpp",
+          "line": 375
+        },
+        {
+          "name": "ExecCallbackThrowsNonStdException",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_database.cpp",
+          "line": 386
+        },
+        {
+          "name": "OpenWithVfs",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_database.cpp",
+          "line": 403
+        }
+      ]
+    },
+    {
+      "name": "StatementTest",
+      "tests": 30,
+      "testsuite": [
+        {
+          "name": "BindInt",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_statement.cpp",
+          "line": 31
+        },
+        {
+          "name": "BindInt64",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_statement.cpp",
+          "line": 38
+        },
+        {
+          "name": "BindDouble",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_statement.cpp",
+          "line": 45
+        },
+        {
+          "name": "BindText",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_statement.cpp",
+          "line": 52
+        },
+        {
+          "name": "BindNull",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_statement.cpp",
+          "line": 59
+        },
+        {
+          "name": "BindBlob",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_statement.cpp",
+          "line": 66
+        },
+        {
+          "name": "BindByName",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_statement.cpp",
+          "line": 74
+        },
+        {
+          "name": "BindAll",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_statement.cpp",
+          "line": 81
+        },
+        {
+          "name": "BindChaining",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_statement.cpp",
+          "line": 90
+        },
+        {
+          "name": "StepReturnsRow",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_statement.cpp",
+          "line": 101
+        },
+        {
+          "name": "StepExhausted",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_statement.cpp",
+          "line": 107
+        },
+        {
+          "name": "ExecuteReturnsBool",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_statement.cpp",
+          "line": 112
+        },
+        {
+          "name": "ResetAndReuse",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_statement.cpp",
+          "line": 117
+        },
+        {
+          "name": "ColumnCount",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_statement.cpp",
+          "line": 134
+        },
+        {
+          "name": "ColumnName",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_statement.cpp",
+          "line": 139
+        },
+        {
+          "name": "ColumnType",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_statement.cpp",
+          "line": 147
+        },
+        {
+          "name": "ColumnValue",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_statement.cpp",
+          "line": 155
+        },
+        {
+          "name": "ColumnIsNull",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_statement.cpp",
+          "line": 168
+        },
+        {
+          "name": "OptionalColumn",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_statement.cpp",
+          "line": 178
+        },
+        {
+          "name": "BindParameterCount",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_statement.cpp",
+          "line": 196
+        },
+        {
+          "name": "BindParameterName",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_statement.cpp",
+          "line": 201
+        },
+        {
+          "name": "IsReadonly",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_statement.cpp",
+          "line": 211
+        },
+        {
+          "name": "Sql",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_statement.cpp",
+          "line": 219
+        },
+        {
+          "name": "IsBusy",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_statement.cpp",
+          "line": 225
+        },
+        {
+          "name": "MoveConstruction",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_statement.cpp",
+          "line": 234
+        },
+        {
+          "name": "MoveAssignment",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_statement.cpp",
+          "line": 246
+        },
+        {
+          "name": "IsExplain",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_statement.cpp",
+          "line": 259
+        },
+        {
+          "name": "ExpandedSql",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_statement.cpp",
+          "line": 264
+        },
+        {
+          "name": "ExpandedSqlNoBinding",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_statement.cpp",
+          "line": 271
+        },
+        {
+          "name": "ColumnDecltype",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_statement.cpp",
+          "line": 277
+        }
+      ]
+    },
+    {
+      "name": "StatementEdgeCaseTest",
+      "tests": 2,
+      "testsuite": [
+        {
+          "name": "DatabaseOnDefaultConstructedStatement",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_statement.cpp",
+          "line": 294
+        },
+        {
+          "name": "DatabaseOnMovedFromStatement",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_statement.cpp",
+          "line": 300
+        }
+      ]
+    },
+    {
+      "name": "FunctionTest",
+      "tests": 19,
+      "testsuite": [
+        {
+          "name": "ScalarDouble",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_function.cpp",
+          "line": 19
+        },
+        {
+          "name": "ScalarMultipleArgs",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_function.cpp",
+          "line": 31
+        },
+        {
+          "name": "ScalarNullResult",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_function.cpp",
+          "line": 43
+        },
+        {
+          "name": "ScalarTextResult",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_function.cpp",
+          "line": 66
+        },
+        {
+          "name": "ScalarBlobResult",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_function.cpp",
+          "line": 79
+        },
+        {
+          "name": "ScalarError",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_function.cpp",
+          "line": 96
+        },
+        {
+          "name": "ScalarExceptionInCallback",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_function.cpp",
+          "line": 106
+        },
+        {
+          "name": "ScalarVariadicArgs",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_function.cpp",
+          "line": 116
+        },
+        {
+          "name": "ScalarDoubleValue",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_function.cpp",
+          "line": 130
+        },
+        {
+          "name": "AggregateSum",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_function.cpp",
+          "line": 159
+        },
+        {
+          "name": "AggregateWithGroupBy",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_function.cpp",
+          "line": 172
+        },
+        {
+          "name": "AggregateEmptySet",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_function.cpp",
+          "line": 189
+        },
+        {
+          "name": "AggregateTemplateSum",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_function.cpp",
+          "line": 205
+        },
+        {
+          "name": "AggregateTemplateAverage",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_function.cpp",
+          "line": 225
+        },
+        {
+          "name": "WindowSumOverPartition",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_function.cpp",
+          "line": 271
+        },
+        {
+          "name": "WindowSumOverAll",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_function.cpp",
+          "line": 303
+        },
+        {
+          "name": "ScalarDeterministic",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_function.cpp",
+          "line": 324
+        },
+        {
+          "name": "SetSubtype",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_function.cpp",
+          "line": 342
+        },
+        {
+          "name": "SetSubtypeZero",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_function.cpp",
+          "line": 360
+        }
+      ]
+    },
+    {
+      "name": "VirtualTableTest",
+      "tests": 9,
+      "testsuite": [
+        {
+          "name": "ReadOnlyFullScan",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_virtual_table.cpp",
+          "line": 271
+        },
+        {
+          "name": "ReadOnlyWithConstraint",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_virtual_table.cpp",
+          "line": 296
+        },
+        {
+          "name": "ReadOnlyEmptyTable",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_virtual_table.cpp",
+          "line": 318
+        },
+        {
+          "name": "ReadOnlyBestIndexPlans",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_virtual_table.cpp",
+          "line": 333
+        },
+        {
+          "name": "ReadOnlyColumnAccess",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_virtual_table.cpp",
+          "line": 355
+        },
+        {
+          "name": "InsertAndQuery",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_virtual_table.cpp",
+          "line": 380
+        },
+        {
+          "name": "UpdateRow",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_virtual_table.cpp",
+          "line": 422
+        },
+        {
+          "name": "DeleteRow",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_virtual_table.cpp",
+          "line": 445
+        },
+        {
+          "name": "ReadOnlyRejectsWrite",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_virtual_table.cpp",
+          "line": 461
+        }
+      ]
+    },
+    {
+      "name": "BlobIOTest",
+      "tests": 32,
+      "testsuite": [
+        {
+          "name": "OpenReadOnly",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_blobio.cpp",
+          "line": 54
+        },
+        {
+          "name": "OpenReadWrite",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_blobio.cpp",
+          "line": 60
+        },
+        {
+          "name": "OpenFailOnNonexistentRow",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_blobio.cpp",
+          "line": 66
+        },
+        {
+          "name": "OpenFailOnNonexistentTable",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_blobio.cpp",
+          "line": 70
+        },
+        {
+          "name": "OpenFailOnNonexistentColumn",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_blobio.cpp",
+          "line": 74
+        },
+        {
+          "name": "DefaultConstructorStartsClosed",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_blobio.cpp",
+          "line": 78
+        },
+        {
+          "name": "ReadEntireBlob",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_blobio.cpp",
+          "line": 88
+        },
+        {
+          "name": "ReadPartialBlob",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_blobio.cpp",
+          "line": 98
+        },
+        {
+          "name": "ReadSingleByte",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_blobio.cpp",
+          "line": 109
+        },
+        {
+          "name": "ReadAtOffsetZero",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_blobio.cpp",
+          "line": 116
+        },
+        {
+          "name": "ReadBeyondBoundsThrows",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_blobio.cpp",
+          "line": 123
+        },
+        {
+          "name": "ReadTextAsBlob",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_blobio.cpp",
+          "line": 130
+        },
+        {
+          "name": "WriteEntireBlob",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_blobio.cpp",
+          "line": 142
+        },
+        {
+          "name": "WritePartialBlob",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_blobio.cpp",
+          "line": 155
+        },
+        {
+          "name": "WriteBeyondBoundsThrows",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_blobio.cpp",
+          "line": 176
+        },
+        {
+          "name": "WriteReadOnlyThrows",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_blobio.cpp",
+          "line": 183
+        },
+        {
+          "name": "SizeOnNonNullBlob",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_blobio.cpp",
+          "line": 193
+        },
+        {
+          "name": "SizeOnTextBlob",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_blobio.cpp",
+          "line": 198
+        },
+        {
+          "name": "ReopenMovesToNewRow",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_blobio.cpp",
+          "line": 207
+        },
+        {
+          "name": "ReopenFailsOnNonexistentRow",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_blobio.cpp",
+          "line": 219
+        },
+        {
+          "name": "ReopenPreservesReadWriteMode",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_blobio.cpp",
+          "line": 224
+        },
+        {
+          "name": "ReadAll",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_blobio.cpp",
+          "line": 241
+        },
+        {
+          "name": "ReadAllEmpty",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_blobio.cpp",
+          "line": 250
+        },
+        {
+          "name": "ReadAllText",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_blobio.cpp",
+          "line": 259
+        },
+        {
+          "name": "WriteAllVector",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_blobio.cpp",
+          "line": 265
+        },
+        {
+          "name": "WriteAllRaw",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_blobio.cpp",
+          "line": 280
+        },
+        {
+          "name": "MoveConstruction",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_blobio.cpp",
+          "line": 294
+        },
+        {
+          "name": "MoveAssignment",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_blobio.cpp",
+          "line": 308
+        },
+        {
+          "name": "SelfMoveAssignment",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_blobio.cpp",
+          "line": 319
+        },
+        {
+          "name": "WriteViaBlobThenVerifyViaStatement",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_blobio.cpp",
+          "line": 331
+        },
+        {
+          "name": "UpdateBlobSizeThenWriteViaBlobIO",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_blobio.cpp",
+          "line": 345
+        },
+        {
+          "name": "RowidFromStatementUsedInBlobIO",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_blobio.cpp",
+          "line": 357
+        }
+      ]
+    },
+    {
+      "name": "BcvfsConfigTest",
+      "tests": 3,
+      "testsuite": [
+        {
+          "name": "CacheSize",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_bcvfs.cpp",
+          "line": 23
+        },
+        {
+          "name": "DistinctValues",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_bcvfs.cpp",
+          "line": 28
+        },
+        {
+          "name": "AllValuesDefined",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_bcvfs.cpp",
+          "line": 176
+        }
+      ]
+    },
+    {
+      "name": "BcvfsStorageTest",
+      "tests": 2,
+      "testsuite": [
+        {
+          "name": "DistinctValues",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_bcvfs.cpp",
+          "line": 41
+        },
+        {
+          "name": "AllValuesDefined",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_bcvfs.cpp",
+          "line": 193
+        }
+      ]
+    },
+    {
+      "name": "PrefetchHandleTest",
+      "tests": 6,
+      "testsuite": [
+        {
+          "name": "DefaultConstruction",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_bcvfs.cpp",
+          "line": 50
+        },
+        {
+          "name": "StubStatus",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_bcvfs.cpp",
+          "line": 55
+        },
+        {
+          "name": "StubErrorMessage",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_bcvfs.cpp",
+          "line": 60
+        },
+        {
+          "name": "StubRunIsNoop",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_bcvfs.cpp",
+          "line": 65
+        },
+        {
+          "name": "MoveConstruction",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_bcvfs.cpp",
+          "line": 70
+        },
+        {
+          "name": "MoveAssignment",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_bcvfs.cpp",
+          "line": 77
+        }
+      ]
+    },
+    {
+      "name": "BcvfsTest",
+      "tests": 3,
+      "testsuite": [
+        {
+          "name": "StubConstructionThrows",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_bcvfs.cpp",
+          "line": 88
+        },
+        {
+          "name": "VfsNameAvailableEvenWhenStub",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_bcvfs.cpp",
+          "line": 103
+        },
+        {
+          "name": "MoveConstruction",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_bcvfs.cpp",
+          "line": 113
+        }
+      ]
+    },
+    {
+      "name": "BcvfsCallbackTest",
+      "tests": 4,
+      "testsuite": [
+        {
+          "name": "AuthCallbackSignature",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_bcvfs.cpp",
+          "line": 127
+        },
+        {
+          "name": "LogCallbackSignature",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_bcvfs.cpp",
+          "line": 141
+        },
+        {
+          "name": "BusyCallbackReturnsDelay",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_bcvfs.cpp",
+          "line": 151
+        },
+        {
+          "name": "BusyCallbackDefaultCancels",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_bcvfs.cpp",
+          "line": 167
+        }
+      ]
+    },
+    {
+      "name": "PrefetchStatusTest",
+      "tests": 1,
+      "testsuite": [
+        {
+          "name": "DistinctValues",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_bcvfs.cpp",
+          "line": 204
+        }
+      ]
+    },
+    {
+      "name": "SessionTest",
+      "tests": 27,
+      "testsuite": [
+        {
+          "name": "CreateSession",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_session.cpp",
+          "line": 34
+        },
+        {
+          "name": "MoveConstruction",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_session.cpp",
+          "line": 40
+        },
+        {
+          "name": "MoveAssignment",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_session.cpp",
+          "line": 49
+        },
+        {
+          "name": "EnableDisable",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_session.cpp",
+          "line": 61
+        },
+        {
+          "name": "EnableReturnsPreviousState",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_session.cpp",
+          "line": 71
+        },
+        {
+          "name": "IndirectFlag",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_session.cpp",
+          "line": 86
+        },
+        {
+          "name": "AttachSpecificTable",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_session.cpp",
+          "line": 99
+        },
+        {
+          "name": "AttachAllTables",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_session.cpp",
+          "line": 108
+        },
+        {
+          "name": "AttachNoneTracksNothing",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_session.cpp",
+          "line": 117
+        },
+        {
+          "name": "ExtractEmptyChangeset",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_session.cpp",
+          "line": 130
+        },
+        {
+          "name": "ExtractChangesetAfterInsert",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_session.cpp",
+          "line": 139
+        },
+        {
+          "name": "ExtractChangesetAfterUpdate",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_session.cpp",
+          "line": 151
+        },
+        {
+          "name": "ExtractChangesetAfterDelete",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_session.cpp",
+          "line": 162
+        },
+        {
+          "name": "NoChangesWhenDisabled",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_session.cpp",
+          "line": 173
+        },
+        {
+          "name": "ExtractPatchset",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_session.cpp",
+          "line": 189
+        },
+        {
+          "name": "CumulativeChangeset",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_session.cpp",
+          "line": 205
+        },
+        {
+          "name": "IsEmpty",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_session.cpp",
+          "line": 226
+        },
+        {
+          "name": "MemoryUsed",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_session.cpp",
+          "line": 231
+        },
+        {
+          "name": "TableFilterInclude",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_session.cpp",
+          "line": 243
+        },
+        {
+          "name": "TableFilterExclude",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_session.cpp",
+          "line": 256
+        },
+        {
+          "name": "SessionOnNamedDatabase",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_session.cpp",
+          "line": 271
+        },
+        {
+          "name": "ChangesetStreamToVector",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_session.cpp",
+          "line": 290
+        },
+        {
+          "name": "PatchsetStreamToVector",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_session.cpp",
+          "line": 312
+        },
+        {
+          "name": "ChangesetStreamToOStream",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_session.cpp",
+          "line": 329
+        },
+        {
+          "name": "ChangesetStreamCallbackError",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_session.cpp",
+          "line": 340
+        },
+        {
+          "name": "DiffAgainstAttachedDatabase",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_session.cpp",
+          "line": 357
+        },
+        {
+          "name": "DiffFreshSessionContainsOnlyDiff",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_session.cpp",
+          "line": 416
+        }
+      ]
+    },
+    {
+      "name": "ChangesetTest",
+      "tests": 34,
+      "testsuite": [
+        {
+          "name": "DefaultConstruction",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changeset.cpp",
+          "line": 33
+        },
+        {
+          "name": "MoveConstruction",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changeset.cpp",
+          "line": 39
+        },
+        {
+          "name": "MoveAssignment",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changeset.cpp",
+          "line": 54
+        },
+        {
+          "name": "CopyFrom",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changeset.cpp",
+          "line": 79
+        },
+        {
+          "name": "IterateInsert",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changeset.cpp",
+          "line": 96
+        },
+        {
+          "name": "IterateUpdate",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changeset.cpp",
+          "line": 112
+        },
+        {
+          "name": "IterateDelete",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changeset.cpp",
+          "line": 127
+        },
+        {
+          "name": "InsertNewValues",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changeset.cpp",
+          "line": 145
+        },
+        {
+          "name": "DeleteOldValues",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changeset.cpp",
+          "line": 164
+        },
+        {
+          "name": "UpdateBothValues",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changeset.cpp",
+          "line": 180
+        },
+        {
+          "name": "PrimaryKey",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changeset.cpp",
+          "line": 199
+        },
+        {
+          "name": "IsIndirect",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changeset.cpp",
+          "line": 216
+        },
+        {
+          "name": "MultipleChangesInOrder",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changeset.cpp",
+          "line": 235
+        },
+        {
+          "name": "EmptyChangesetIteration",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changeset.cpp",
+          "line": 254
+        },
+        {
+          "name": "ConcatTwoChangesets",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changeset.cpp",
+          "line": 268
+        },
+        {
+          "name": "InvertInsert",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changeset.cpp",
+          "line": 295
+        },
+        {
+          "name": "InvertUpdate",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changeset.cpp",
+          "line": 314
+        },
+        {
+          "name": "ApplyToReplica",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changeset.cpp",
+          "line": 336
+        },
+        {
+          "name": "ApplyOmitConflict",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changeset.cpp",
+          "line": 369
+        },
+        {
+          "name": "PatchsetExtraction",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changeset.cpp",
+          "line": 402
+        },
+        {
+          "name": "PatchsetApply",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changeset.cpp",
+          "line": 418
+        },
+        {
+          "name": "ApplyStream",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changeset.cpp",
+          "line": 442
+        },
+        {
+          "name": "ApplyStreamV2WithFlags",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changeset.cpp",
+          "line": 468
+        },
+        {
+          "name": "ConcatStream",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changeset.cpp",
+          "line": 495
+        },
+        {
+          "name": "InvertStream",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changeset.cpp",
+          "line": 528
+        },
+        {
+          "name": "IteratorFromStream",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changeset.cpp",
+          "line": 560
+        },
+        {
+          "name": "ApplyV2IgnoresNoop",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changeset.cpp",
+          "line": 580
+        },
+        {
+          "name": "ApplyV2BasicApply",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changeset.cpp",
+          "line": 619
+        },
+        {
+          "name": "ApplyV3FilterSkipsSelectedChanges",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changeset.cpp",
+          "line": 649
+        },
+        {
+          "name": "ApplyV3NullFilterBehavesLikeApplyV2",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changeset.cpp",
+          "line": 691
+        },
+        {
+          "name": "EndToEndReplication",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changeset.cpp",
+          "line": 719
+        },
+        {
+          "name": "ApplyV2WithNoSavepoint",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changeset.cpp",
+          "line": 762
+        },
+        {
+          "name": "ApplyV2InvertViaInvertMethod",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changeset.cpp",
+          "line": 787
+        },
+        {
+          "name": "IteratorFromStreamError",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changeset.cpp",
+          "line": 823
+        }
+      ]
+    },
+    {
+      "name": "ChangegroupTest",
+      "tests": 14,
+      "testsuite": [
+        {
+          "name": "CreateChangegroup",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changegroup.cpp",
+          "line": 49
+        },
+        {
+          "name": "MoveConstruction",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changegroup.cpp",
+          "line": 54
+        },
+        {
+          "name": "MoveAssignment",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changegroup.cpp",
+          "line": 61
+        },
+        {
+          "name": "AddSingleChangeset",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changegroup.cpp",
+          "line": 72
+        },
+        {
+          "name": "AddTwoChangesets",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changegroup.cpp",
+          "line": 85
+        },
+        {
+          "name": "AddThreeChangesets",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changegroup.cpp",
+          "line": 110
+        },
+        {
+          "name": "AddPatchset",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changegroup.cpp",
+          "line": 145
+        },
+        {
+          "name": "MixChangesetsAndPatchsets",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changegroup.cpp",
+          "line": 158
+        },
+        {
+          "name": "ApplyMergedToTarget",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changegroup.cpp",
+          "line": 187
+        },
+        {
+          "name": "EmptyGroupProducesEmptyChangeset",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changegroup.cpp",
+          "line": 226
+        },
+        {
+          "name": "OutputMultipleTimes",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changegroup.cpp",
+          "line": 236
+        },
+        {
+          "name": "AddStream",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changegroup.cpp",
+          "line": 257
+        },
+        {
+          "name": "OutputStream",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changegroup.cpp",
+          "line": 273
+        },
+        {
+          "name": "AddAndOutputStreamRoundTrip",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_changegroup.cpp",
+          "line": 298
+        }
+      ]
+    },
+    {
+      "name": "BcvfsIntegrationTest",
+      "tests": 10,
+      "testsuite": [
+        {
+          "name": "CreateConfigureAttach",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_bcvfs_integration.cpp",
+          "line": 188
+        },
+        {
+          "name": "AttachWithLogging",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_bcvfs_integration.cpp",
+          "line": 203
+        },
+        {
+          "name": "DetachAndReattach",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_bcvfs_integration.cpp",
+          "line": 221
+        },
+        {
+          "name": "PollAfterAttach",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_bcvfs_integration.cpp",
+          "line": 233
+        },
+        {
+          "name": "TwoInstancesSameCache",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_bcvfs_integration.cpp",
+          "line": 245
+        },
+        {
+          "name": "AuthCallbackInvoked",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_bcvfs_integration.cpp",
+          "line": 270
+        },
+        {
+          "name": "ConfigurationChain",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_bcvfs_integration.cpp",
+          "line": 292
+        },
+        {
+          "name": "VfsNamePreserved",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_bcvfs_integration.cpp",
+          "line": 313
+        },
+        {
+          "name": "MoveSemantics",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_bcvfs_integration.cpp",
+          "line": 325
+        },
+        {
+          "name": "IsNotDaemon",
+          "file": "\/Users\/affan\/dev\/cloudsqlite\/tests\/test_bcvfs_integration.cpp",
+          "line": 341
+        }
+      ]
+    }
+  ]
+}

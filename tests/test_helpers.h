@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdio>
+#include <filesystem>
 #include <string>
 
 namespace sqlitex {
@@ -14,10 +15,13 @@ namespace test {
 class TempFile {
     public:
     TempFile() {
-        path_ = "/tmp/sqlitex_test_" + std::to_string(counter_++) + ".db";
+        auto p = std::filesystem::temp_directory_path() /
+                 ("sqlitex_test_" + std::to_string(counter_++) + ".db");
+        path_ = p.string();
     }
     ~TempFile() {
-        std::remove(path_.c_str());
+        std::error_code ec;
+        std::filesystem::remove(path_, ec);
     }
 
     TempFile(const TempFile&) = delete;

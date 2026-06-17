@@ -8,6 +8,7 @@
 #include <cstring>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 namespace sqlitex {
 
@@ -156,7 +157,7 @@ std::string_view Statement::column_decltype(int index) const noexcept {
 Value Statement::column_value(int index) const {
     switch (sqlite3_column_type(stmt_, index)) {
     case SQLITE_INTEGER:
-        return Value(sqlite3_column_int64(stmt_, index));
+        return Value(static_cast<int64_t>(sqlite3_column_int64(stmt_, index)));
     case SQLITE_FLOAT:
         return Value(sqlite3_column_double(stmt_, index));
     case SQLITE_TEXT:

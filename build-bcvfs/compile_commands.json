@@ -1,0 +1,242 @@
+[
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs",
+  "command": "/usr/bin/c++ -DSQLITEX_HAS_BCVFS=1 -DSQLITEX_HAS_SESSION=1 -I/Users/affan/dev/cloudsqlite/include -I/Users/affan/dev/cloudsqlite/build-bcvfs -I/Users/affan/dev/cloudsqlite/third_party/bcvfs -I/Users/affan/dev/cloudsqlite/third_party/sqlite3 -isystem /opt/homebrew/include -g -std=gnu++17 -arch arm64 -o CMakeFiles/sqlitex.dir/src/error.cpp.o -c /Users/affan/dev/cloudsqlite/src/error.cpp",
+  "file": "/Users/affan/dev/cloudsqlite/src/error.cpp",
+  "output": "CMakeFiles/sqlitex.dir/src/error.cpp.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs",
+  "command": "/usr/bin/c++ -DSQLITEX_HAS_BCVFS=1 -DSQLITEX_HAS_SESSION=1 -I/Users/affan/dev/cloudsqlite/include -I/Users/affan/dev/cloudsqlite/build-bcvfs -I/Users/affan/dev/cloudsqlite/third_party/bcvfs -I/Users/affan/dev/cloudsqlite/third_party/sqlite3 -isystem /opt/homebrew/include -g -std=gnu++17 -arch arm64 -o CMakeFiles/sqlitex.dir/src/database.cpp.o -c /Users/affan/dev/cloudsqlite/src/database.cpp",
+  "file": "/Users/affan/dev/cloudsqlite/src/database.cpp",
+  "output": "CMakeFiles/sqlitex.dir/src/database.cpp.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs",
+  "command": "/usr/bin/c++ -DSQLITEX_HAS_BCVFS=1 -DSQLITEX_HAS_SESSION=1 -I/Users/affan/dev/cloudsqlite/include -I/Users/affan/dev/cloudsqlite/build-bcvfs -I/Users/affan/dev/cloudsqlite/third_party/bcvfs -I/Users/affan/dev/cloudsqlite/third_party/sqlite3 -isystem /opt/homebrew/include -g -std=gnu++17 -arch arm64 -o CMakeFiles/sqlitex.dir/src/statement.cpp.o -c /Users/affan/dev/cloudsqlite/src/statement.cpp",
+  "file": "/Users/affan/dev/cloudsqlite/src/statement.cpp",
+  "output": "CMakeFiles/sqlitex.dir/src/statement.cpp.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs",
+  "command": "/usr/bin/c++ -DSQLITEX_HAS_BCVFS=1 -DSQLITEX_HAS_SESSION=1 -I/Users/affan/dev/cloudsqlite/include -I/Users/affan/dev/cloudsqlite/build-bcvfs -I/Users/affan/dev/cloudsqlite/third_party/bcvfs -I/Users/affan/dev/cloudsqlite/third_party/sqlite3 -isystem /opt/homebrew/include -g -std=gnu++17 -arch arm64 -o CMakeFiles/sqlitex.dir/src/function.cpp.o -c /Users/affan/dev/cloudsqlite/src/function.cpp",
+  "file": "/Users/affan/dev/cloudsqlite/src/function.cpp",
+  "output": "CMakeFiles/sqlitex.dir/src/function.cpp.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs",
+  "command": "/usr/bin/c++ -DSQLITEX_HAS_BCVFS=1 -DSQLITEX_HAS_SESSION=1 -I/Users/affan/dev/cloudsqlite/include -I/Users/affan/dev/cloudsqlite/build-bcvfs -I/Users/affan/dev/cloudsqlite/third_party/bcvfs -I/Users/affan/dev/cloudsqlite/third_party/sqlite3 -isystem /opt/homebrew/include -g -std=gnu++17 -arch arm64 -o CMakeFiles/sqlitex.dir/src/blobio.cpp.o -c /Users/affan/dev/cloudsqlite/src/blobio.cpp",
+  "file": "/Users/affan/dev/cloudsqlite/src/blobio.cpp",
+  "output": "CMakeFiles/sqlitex.dir/src/blobio.cpp.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs",
+  "command": "/usr/bin/c++ -DSQLITEX_HAS_BCVFS=1 -DSQLITEX_HAS_SESSION=1 -I/Users/affan/dev/cloudsqlite/include -I/Users/affan/dev/cloudsqlite/build-bcvfs -I/Users/affan/dev/cloudsqlite/third_party/bcvfs -I/Users/affan/dev/cloudsqlite/third_party/sqlite3 -isystem /opt/homebrew/include -g -std=gnu++17 -arch arm64 -o CMakeFiles/sqlitex.dir/src/virtual_table.cpp.o -c /Users/affan/dev/cloudsqlite/src/virtual_table.cpp",
+  "file": "/Users/affan/dev/cloudsqlite/src/virtual_table.cpp",
+  "output": "CMakeFiles/sqlitex.dir/src/virtual_table.cpp.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs",
+  "command": "/usr/bin/c++ -DSQLITEX_HAS_BCVFS=1 -DSQLITEX_HAS_SESSION=1 -I/Users/affan/dev/cloudsqlite/include -I/Users/affan/dev/cloudsqlite/build-bcvfs -I/Users/affan/dev/cloudsqlite/third_party/bcvfs -I/Users/affan/dev/cloudsqlite/third_party/sqlite3 -isystem /opt/homebrew/include -g -std=gnu++17 -arch arm64 -o CMakeFiles/sqlitex.dir/src/bcvfs.cpp.o -c /Users/affan/dev/cloudsqlite/src/bcvfs.cpp",
+  "file": "/Users/affan/dev/cloudsqlite/src/bcvfs.cpp",
+  "output": "CMakeFiles/sqlitex.dir/src/bcvfs.cpp.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs",
+  "command": "/usr/bin/c++ -DSQLITEX_HAS_BCVFS=1 -DSQLITEX_HAS_SESSION=1 -I/Users/affan/dev/cloudsqlite/include -I/Users/affan/dev/cloudsqlite/build-bcvfs -I/Users/affan/dev/cloudsqlite/third_party/bcvfs -I/Users/affan/dev/cloudsqlite/third_party/sqlite3 -isystem /opt/homebrew/include -g -std=gnu++17 -arch arm64 -o CMakeFiles/sqlitex.dir/src/session.cpp.o -c /Users/affan/dev/cloudsqlite/src/session.cpp",
+  "file": "/Users/affan/dev/cloudsqlite/src/session.cpp",
+  "output": "CMakeFiles/sqlitex.dir/src/session.cpp.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs",
+  "command": "/usr/bin/c++ -DSQLITEX_HAS_BCVFS=1 -DSQLITEX_HAS_SESSION=1 -I/Users/affan/dev/cloudsqlite/include -I/Users/affan/dev/cloudsqlite/build-bcvfs -I/Users/affan/dev/cloudsqlite/third_party/bcvfs -I/Users/affan/dev/cloudsqlite/third_party/sqlite3 -isystem /opt/homebrew/include -g -std=gnu++17 -arch arm64 -o CMakeFiles/sqlitex.dir/src/changeset.cpp.o -c /Users/affan/dev/cloudsqlite/src/changeset.cpp",
+  "file": "/Users/affan/dev/cloudsqlite/src/changeset.cpp",
+  "output": "CMakeFiles/sqlitex.dir/src/changeset.cpp.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs",
+  "command": "/usr/bin/c++ -DSQLITEX_HAS_BCVFS=1 -DSQLITEX_HAS_SESSION=1 -I/Users/affan/dev/cloudsqlite/include -I/Users/affan/dev/cloudsqlite/build-bcvfs -I/Users/affan/dev/cloudsqlite/third_party/bcvfs -I/Users/affan/dev/cloudsqlite/third_party/sqlite3 -isystem /opt/homebrew/include -g -std=gnu++17 -arch arm64 -o CMakeFiles/sqlitex.dir/src/changeset_iterator.cpp.o -c /Users/affan/dev/cloudsqlite/src/changeset_iterator.cpp",
+  "file": "/Users/affan/dev/cloudsqlite/src/changeset_iterator.cpp",
+  "output": "CMakeFiles/sqlitex.dir/src/changeset_iterator.cpp.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs",
+  "command": "/usr/bin/c++ -DSQLITEX_HAS_BCVFS=1 -DSQLITEX_HAS_SESSION=1 -I/Users/affan/dev/cloudsqlite/include -I/Users/affan/dev/cloudsqlite/build-bcvfs -I/Users/affan/dev/cloudsqlite/third_party/bcvfs -I/Users/affan/dev/cloudsqlite/third_party/sqlite3 -isystem /opt/homebrew/include -g -std=gnu++17 -arch arm64 -o CMakeFiles/sqlitex.dir/src/changegroup.cpp.o -c /Users/affan/dev/cloudsqlite/src/changegroup.cpp",
+  "file": "/Users/affan/dev/cloudsqlite/src/changegroup.cpp",
+  "output": "CMakeFiles/sqlitex.dir/src/changegroup.cpp.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs",
+  "command": "/usr/bin/cc -DSQLITEX_HAS_BCVFS=1 -DSQLITEX_HAS_SESSION=1 -I/Users/affan/dev/cloudsqlite/include -I/Users/affan/dev/cloudsqlite/build-bcvfs -I/Users/affan/dev/cloudsqlite/third_party/bcvfs -I/Users/affan/dev/cloudsqlite/third_party/sqlite3 -isystem /opt/homebrew/include -g -arch arm64 -o CMakeFiles/sqlitex.dir/third_party/bcvfs/blockcachevfs.c.o -c /Users/affan/dev/cloudsqlite/third_party/bcvfs/blockcachevfs.c",
+  "file": "/Users/affan/dev/cloudsqlite/third_party/bcvfs/blockcachevfs.c",
+  "output": "CMakeFiles/sqlitex.dir/third_party/bcvfs/blockcachevfs.c.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs",
+  "command": "/usr/bin/cc -DSQLITEX_HAS_BCVFS=1 -DSQLITEX_HAS_SESSION=1 -I/Users/affan/dev/cloudsqlite/include -I/Users/affan/dev/cloudsqlite/build-bcvfs -I/Users/affan/dev/cloudsqlite/third_party/bcvfs -I/Users/affan/dev/cloudsqlite/third_party/sqlite3 -isystem /opt/homebrew/include -g -arch arm64 -o CMakeFiles/sqlitex.dir/third_party/bcvfs/bcvutil.c.o -c /Users/affan/dev/cloudsqlite/third_party/bcvfs/bcvutil.c",
+  "file": "/Users/affan/dev/cloudsqlite/third_party/bcvfs/bcvutil.c",
+  "output": "CMakeFiles/sqlitex.dir/third_party/bcvfs/bcvutil.c.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs",
+  "command": "/usr/bin/cc -DSQLITEX_HAS_BCVFS=1 -DSQLITEX_HAS_SESSION=1 -I/Users/affan/dev/cloudsqlite/include -I/Users/affan/dev/cloudsqlite/build-bcvfs -I/Users/affan/dev/cloudsqlite/third_party/bcvfs -I/Users/affan/dev/cloudsqlite/third_party/sqlite3 -isystem /opt/homebrew/include -g -arch arm64 -o CMakeFiles/sqlitex.dir/third_party/bcvfs/bcvmodule.c.o -c /Users/affan/dev/cloudsqlite/third_party/bcvfs/bcvmodule.c",
+  "file": "/Users/affan/dev/cloudsqlite/third_party/bcvfs/bcvmodule.c",
+  "output": "CMakeFiles/sqlitex.dir/third_party/bcvfs/bcvmodule.c.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs",
+  "command": "/usr/bin/cc -DSQLITEX_HAS_BCVFS=1 -DSQLITEX_HAS_SESSION=1 -I/Users/affan/dev/cloudsqlite/include -I/Users/affan/dev/cloudsqlite/build-bcvfs -I/Users/affan/dev/cloudsqlite/third_party/bcvfs -I/Users/affan/dev/cloudsqlite/third_party/sqlite3 -isystem /opt/homebrew/include -g -arch arm64 -o CMakeFiles/sqlitex.dir/third_party/bcvfs/simplexml.c.o -c /Users/affan/dev/cloudsqlite/third_party/bcvfs/simplexml.c",
+  "file": "/Users/affan/dev/cloudsqlite/third_party/bcvfs/simplexml.c",
+  "output": "CMakeFiles/sqlitex.dir/third_party/bcvfs/simplexml.c.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs",
+  "command": "/usr/bin/cc -DSQLITEX_HAS_BCVFS=1 -DSQLITEX_HAS_SESSION=1 -I/Users/affan/dev/cloudsqlite/include -I/Users/affan/dev/cloudsqlite/build-bcvfs -I/Users/affan/dev/cloudsqlite/third_party/bcvfs -I/Users/affan/dev/cloudsqlite/third_party/sqlite3 -isystem /opt/homebrew/include -g -arch arm64 -o CMakeFiles/sqlitex.dir/third_party/bcvfs/bcvencrypt.c.o -c /Users/affan/dev/cloudsqlite/third_party/bcvfs/bcvencrypt.c",
+  "file": "/Users/affan/dev/cloudsqlite/third_party/bcvfs/bcvencrypt.c",
+  "output": "CMakeFiles/sqlitex.dir/third_party/bcvfs/bcvencrypt.c.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs",
+  "command": "/usr/bin/cc -DSQLITEX_HAS_BCVFS=1 -DSQLITEX_HAS_SESSION=1 -I/Users/affan/dev/cloudsqlite/include -I/Users/affan/dev/cloudsqlite/build-bcvfs -I/Users/affan/dev/cloudsqlite/third_party/bcvfs -I/Users/affan/dev/cloudsqlite/third_party/sqlite3 -isystem /opt/homebrew/include -g -arch arm64 -o CMakeFiles/sqlitex.dir/third_party/bcvfs/bcvlog.c.o -c /Users/affan/dev/cloudsqlite/third_party/bcvfs/bcvlog.c",
+  "file": "/Users/affan/dev/cloudsqlite/third_party/bcvfs/bcvlog.c",
+  "output": "CMakeFiles/sqlitex.dir/third_party/bcvfs/bcvlog.c.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs",
+  "command": "/usr/bin/cc -DSQLITEX_HAS_BCVFS=1 -DSQLITEX_HAS_SESSION=1 -I/Users/affan/dev/cloudsqlite/third_party/bcvfs -I/Users/affan/dev/cloudsqlite/include -I/Users/affan/dev/cloudsqlite/build-bcvfs -I/Users/affan/dev/cloudsqlite/third_party/sqlite3 -isystem /opt/homebrew/include -g -arch arm64 -o CMakeFiles/blockcachevfsd.dir/third_party/bcvfs/blockcachevfsd.c.o -c /Users/affan/dev/cloudsqlite/third_party/bcvfs/blockcachevfsd.c",
+  "file": "/Users/affan/dev/cloudsqlite/third_party/bcvfs/blockcachevfsd.c",
+  "output": "CMakeFiles/blockcachevfsd.dir/third_party/bcvfs/blockcachevfsd.c.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs/third_party/sqlite3",
+  "command": "/usr/bin/cc -DSQLITE_ENABLE_COLUMN_METADATA -DSQLITE_ENABLE_DBSTAT_VTAB -DSQLITE_ENABLE_FTS5 -DSQLITE_ENABLE_JSON1 -DSQLITE_ENABLE_PREUPDATE_HOOK -DSQLITE_ENABLE_SESSION -DSQLITE_SOUNDEX -DSQLITE_THREADSAFE=1 -I/Users/affan/dev/cloudsqlite/third_party/sqlite3 -g -std=c11 -arch arm64 -fPIC -o CMakeFiles/sqlite3_amalgamation.dir/sqlite3.c.o -c /Users/affan/dev/cloudsqlite/third_party/sqlite3/sqlite3.c",
+  "file": "/Users/affan/dev/cloudsqlite/third_party/sqlite3/sqlite3.c",
+  "output": "third_party/sqlite3/CMakeFiles/sqlite3_amalgamation.dir/sqlite3.c.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-build/googlemock",
+  "command": "/usr/bin/c++  -I/Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googlemock/include -I/Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googlemock -isystem /Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googletest/include -isystem /Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googletest -g -std=c++17 -arch arm64  -DGTEST_HAS_PTHREAD=1   -o CMakeFiles/gmock.dir/src/gmock-all.cc.o -c /Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googlemock/src/gmock-all.cc",
+  "file": "/Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googlemock/src/gmock-all.cc",
+  "output": "_deps/googletest-build/googlemock/CMakeFiles/gmock.dir/src/gmock-all.cc.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-build/googlemock",
+  "command": "/usr/bin/c++  -isystem /Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googlemock/include -isystem /Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googlemock -isystem /Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googletest/include -isystem /Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googletest -g -std=c++17 -arch arm64  -DGTEST_HAS_PTHREAD=1   -o CMakeFiles/gmock_main.dir/src/gmock_main.cc.o -c /Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googlemock/src/gmock_main.cc",
+  "file": "/Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googlemock/src/gmock_main.cc",
+  "output": "_deps/googletest-build/googlemock/CMakeFiles/gmock_main.dir/src/gmock_main.cc.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-build/googletest",
+  "command": "/usr/bin/c++  -I/Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googletest/include -I/Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googletest -g -std=c++17 -arch arm64  -DGTEST_HAS_PTHREAD=1   -o CMakeFiles/gtest.dir/src/gtest-all.cc.o -c /Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googletest/src/gtest-all.cc",
+  "file": "/Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googletest/src/gtest-all.cc",
+  "output": "_deps/googletest-build/googletest/CMakeFiles/gtest.dir/src/gtest-all.cc.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-build/googletest",
+  "command": "/usr/bin/c++  -isystem /Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googletest/include -isystem /Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googletest -g -std=c++17 -arch arm64  -DGTEST_HAS_PTHREAD=1   -o CMakeFiles/gtest_main.dir/src/gtest_main.cc.o -c /Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googletest/src/gtest_main.cc",
+  "file": "/Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googletest/src/gtest_main.cc",
+  "output": "_deps/googletest-build/googletest/CMakeFiles/gtest_main.dir/src/gtest_main.cc.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs/tests",
+  "command": "/usr/bin/c++ -DSQLITEX_HAS_BCVFS=1 -DSQLITEX_HAS_SESSION=1 -I/Users/affan/dev/cloudsqlite/include -I/Users/affan/dev/cloudsqlite/build-bcvfs -I/Users/affan/dev/cloudsqlite/third_party/sqlite3 -isystem /opt/homebrew/include -isystem /Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googletest/include -isystem /Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googletest -g -std=gnu++17 -arch arm64 -o CMakeFiles/sqlitex_tests.dir/test_error.cpp.o -c /Users/affan/dev/cloudsqlite/tests/test_error.cpp",
+  "file": "/Users/affan/dev/cloudsqlite/tests/test_error.cpp",
+  "output": "tests/CMakeFiles/sqlitex_tests.dir/test_error.cpp.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs/tests",
+  "command": "/usr/bin/c++ -DSQLITEX_HAS_BCVFS=1 -DSQLITEX_HAS_SESSION=1 -I/Users/affan/dev/cloudsqlite/include -I/Users/affan/dev/cloudsqlite/build-bcvfs -I/Users/affan/dev/cloudsqlite/third_party/sqlite3 -isystem /opt/homebrew/include -isystem /Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googletest/include -isystem /Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googletest -g -std=gnu++17 -arch arm64 -o CMakeFiles/sqlitex_tests.dir/test_value.cpp.o -c /Users/affan/dev/cloudsqlite/tests/test_value.cpp",
+  "file": "/Users/affan/dev/cloudsqlite/tests/test_value.cpp",
+  "output": "tests/CMakeFiles/sqlitex_tests.dir/test_value.cpp.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs/tests",
+  "command": "/usr/bin/c++ -DSQLITEX_HAS_BCVFS=1 -DSQLITEX_HAS_SESSION=1 -I/Users/affan/dev/cloudsqlite/include -I/Users/affan/dev/cloudsqlite/build-bcvfs -I/Users/affan/dev/cloudsqlite/third_party/sqlite3 -isystem /opt/homebrew/include -isystem /Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googletest/include -isystem /Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googletest -g -std=gnu++17 -arch arm64 -o CMakeFiles/sqlitex_tests.dir/test_database.cpp.o -c /Users/affan/dev/cloudsqlite/tests/test_database.cpp",
+  "file": "/Users/affan/dev/cloudsqlite/tests/test_database.cpp",
+  "output": "tests/CMakeFiles/sqlitex_tests.dir/test_database.cpp.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs/tests",
+  "command": "/usr/bin/c++ -DSQLITEX_HAS_BCVFS=1 -DSQLITEX_HAS_SESSION=1 -I/Users/affan/dev/cloudsqlite/include -I/Users/affan/dev/cloudsqlite/build-bcvfs -I/Users/affan/dev/cloudsqlite/third_party/sqlite3 -isystem /opt/homebrew/include -isystem /Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googletest/include -isystem /Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googletest -g -std=gnu++17 -arch arm64 -o CMakeFiles/sqlitex_tests.dir/test_statement.cpp.o -c /Users/affan/dev/cloudsqlite/tests/test_statement.cpp",
+  "file": "/Users/affan/dev/cloudsqlite/tests/test_statement.cpp",
+  "output": "tests/CMakeFiles/sqlitex_tests.dir/test_statement.cpp.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs/tests",
+  "command": "/usr/bin/c++ -DSQLITEX_HAS_BCVFS=1 -DSQLITEX_HAS_SESSION=1 -I/Users/affan/dev/cloudsqlite/include -I/Users/affan/dev/cloudsqlite/build-bcvfs -I/Users/affan/dev/cloudsqlite/third_party/sqlite3 -isystem /opt/homebrew/include -isystem /Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googletest/include -isystem /Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googletest -g -std=gnu++17 -arch arm64 -o CMakeFiles/sqlitex_tests.dir/test_function.cpp.o -c /Users/affan/dev/cloudsqlite/tests/test_function.cpp",
+  "file": "/Users/affan/dev/cloudsqlite/tests/test_function.cpp",
+  "output": "tests/CMakeFiles/sqlitex_tests.dir/test_function.cpp.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs/tests",
+  "command": "/usr/bin/c++ -DSQLITEX_HAS_BCVFS=1 -DSQLITEX_HAS_SESSION=1 -I/Users/affan/dev/cloudsqlite/include -I/Users/affan/dev/cloudsqlite/build-bcvfs -I/Users/affan/dev/cloudsqlite/third_party/sqlite3 -isystem /opt/homebrew/include -isystem /Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googletest/include -isystem /Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googletest -g -std=gnu++17 -arch arm64 -o CMakeFiles/sqlitex_tests.dir/test_virtual_table.cpp.o -c /Users/affan/dev/cloudsqlite/tests/test_virtual_table.cpp",
+  "file": "/Users/affan/dev/cloudsqlite/tests/test_virtual_table.cpp",
+  "output": "tests/CMakeFiles/sqlitex_tests.dir/test_virtual_table.cpp.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs/tests",
+  "command": "/usr/bin/c++ -DSQLITEX_HAS_BCVFS=1 -DSQLITEX_HAS_SESSION=1 -I/Users/affan/dev/cloudsqlite/include -I/Users/affan/dev/cloudsqlite/build-bcvfs -I/Users/affan/dev/cloudsqlite/third_party/sqlite3 -isystem /opt/homebrew/include -isystem /Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googletest/include -isystem /Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googletest -g -std=gnu++17 -arch arm64 -o CMakeFiles/sqlitex_tests.dir/test_blobio.cpp.o -c /Users/affan/dev/cloudsqlite/tests/test_blobio.cpp",
+  "file": "/Users/affan/dev/cloudsqlite/tests/test_blobio.cpp",
+  "output": "tests/CMakeFiles/sqlitex_tests.dir/test_blobio.cpp.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs/tests",
+  "command": "/usr/bin/c++ -DSQLITEX_HAS_BCVFS=1 -DSQLITEX_HAS_SESSION=1 -I/Users/affan/dev/cloudsqlite/include -I/Users/affan/dev/cloudsqlite/build-bcvfs -I/Users/affan/dev/cloudsqlite/third_party/sqlite3 -isystem /opt/homebrew/include -isystem /Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googletest/include -isystem /Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googletest -g -std=gnu++17 -arch arm64 -o CMakeFiles/sqlitex_tests.dir/test_bcvfs.cpp.o -c /Users/affan/dev/cloudsqlite/tests/test_bcvfs.cpp",
+  "file": "/Users/affan/dev/cloudsqlite/tests/test_bcvfs.cpp",
+  "output": "tests/CMakeFiles/sqlitex_tests.dir/test_bcvfs.cpp.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs/tests",
+  "command": "/usr/bin/c++ -DSQLITEX_HAS_BCVFS=1 -DSQLITEX_HAS_SESSION=1 -I/Users/affan/dev/cloudsqlite/include -I/Users/affan/dev/cloudsqlite/build-bcvfs -I/Users/affan/dev/cloudsqlite/third_party/sqlite3 -isystem /opt/homebrew/include -isystem /Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googletest/include -isystem /Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googletest -g -std=gnu++17 -arch arm64 -o CMakeFiles/sqlitex_tests.dir/test_session.cpp.o -c /Users/affan/dev/cloudsqlite/tests/test_session.cpp",
+  "file": "/Users/affan/dev/cloudsqlite/tests/test_session.cpp",
+  "output": "tests/CMakeFiles/sqlitex_tests.dir/test_session.cpp.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs/tests",
+  "command": "/usr/bin/c++ -DSQLITEX_HAS_BCVFS=1 -DSQLITEX_HAS_SESSION=1 -I/Users/affan/dev/cloudsqlite/include -I/Users/affan/dev/cloudsqlite/build-bcvfs -I/Users/affan/dev/cloudsqlite/third_party/sqlite3 -isystem /opt/homebrew/include -isystem /Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googletest/include -isystem /Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googletest -g -std=gnu++17 -arch arm64 -o CMakeFiles/sqlitex_tests.dir/test_changeset.cpp.o -c /Users/affan/dev/cloudsqlite/tests/test_changeset.cpp",
+  "file": "/Users/affan/dev/cloudsqlite/tests/test_changeset.cpp",
+  "output": "tests/CMakeFiles/sqlitex_tests.dir/test_changeset.cpp.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs/tests",
+  "command": "/usr/bin/c++ -DSQLITEX_HAS_BCVFS=1 -DSQLITEX_HAS_SESSION=1 -I/Users/affan/dev/cloudsqlite/include -I/Users/affan/dev/cloudsqlite/build-bcvfs -I/Users/affan/dev/cloudsqlite/third_party/sqlite3 -isystem /opt/homebrew/include -isystem /Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googletest/include -isystem /Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googletest -g -std=gnu++17 -arch arm64 -o CMakeFiles/sqlitex_tests.dir/test_changegroup.cpp.o -c /Users/affan/dev/cloudsqlite/tests/test_changegroup.cpp",
+  "file": "/Users/affan/dev/cloudsqlite/tests/test_changegroup.cpp",
+  "output": "tests/CMakeFiles/sqlitex_tests.dir/test_changegroup.cpp.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs/tests",
+  "command": "/usr/bin/c++ -DSQLITEX_HAS_BCVFS=1 -DSQLITEX_HAS_SESSION=1 -I/Users/affan/dev/cloudsqlite/include -I/Users/affan/dev/cloudsqlite/build-bcvfs -I/Users/affan/dev/cloudsqlite/third_party/sqlite3 -isystem /opt/homebrew/include -isystem /Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googletest/include -isystem /Users/affan/dev/cloudsqlite/build-bcvfs/_deps/googletest-src/googletest -g -std=gnu++17 -arch arm64 -o CMakeFiles/sqlitex_tests.dir/test_bcvfs_integration.cpp.o -c /Users/affan/dev/cloudsqlite/tests/test_bcvfs_integration.cpp",
+  "file": "/Users/affan/dev/cloudsqlite/tests/test_bcvfs_integration.cpp",
+  "output": "tests/CMakeFiles/sqlitex_tests.dir/test_bcvfs_integration.cpp.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs/examples",
+  "command": "/usr/bin/c++ -DSQLITEX_HAS_BCVFS=1 -DSQLITEX_HAS_SESSION=1 -I/Users/affan/dev/cloudsqlite/include -I/Users/affan/dev/cloudsqlite/build-bcvfs -I/Users/affan/dev/cloudsqlite/third_party/sqlite3 -isystem /opt/homebrew/include -g -std=gnu++17 -arch arm64 -o CMakeFiles/basic_usage.dir/basic_usage.cpp.o -c /Users/affan/dev/cloudsqlite/examples/basic_usage.cpp",
+  "file": "/Users/affan/dev/cloudsqlite/examples/basic_usage.cpp",
+  "output": "examples/CMakeFiles/basic_usage.dir/basic_usage.cpp.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs/examples",
+  "command": "/usr/bin/c++ -DSQLITEX_HAS_BCVFS=1 -DSQLITEX_HAS_SESSION=1 -I/Users/affan/dev/cloudsqlite/include -I/Users/affan/dev/cloudsqlite/build-bcvfs -I/Users/affan/dev/cloudsqlite/third_party/sqlite3 -isystem /opt/homebrew/include -g -std=gnu++17 -arch arm64 -o CMakeFiles/session_tracking.dir/session_tracking.cpp.o -c /Users/affan/dev/cloudsqlite/examples/session_tracking.cpp",
+  "file": "/Users/affan/dev/cloudsqlite/examples/session_tracking.cpp",
+  "output": "examples/CMakeFiles/session_tracking.dir/session_tracking.cpp.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs/examples",
+  "command": "/usr/bin/c++ -DSQLITEX_HAS_BCVFS=1 -DSQLITEX_HAS_SESSION=1 -I/Users/affan/dev/cloudsqlite/include -I/Users/affan/dev/cloudsqlite/build-bcvfs -I/Users/affan/dev/cloudsqlite/third_party/sqlite3 -isystem /opt/homebrew/include -g -std=gnu++17 -arch arm64 -o CMakeFiles/changeset_apply.dir/changeset_apply.cpp.o -c /Users/affan/dev/cloudsqlite/examples/changeset_apply.cpp",
+  "file": "/Users/affan/dev/cloudsqlite/examples/changeset_apply.cpp",
+  "output": "examples/CMakeFiles/changeset_apply.dir/changeset_apply.cpp.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs/examples",
+  "command": "/usr/bin/c++ -DSQLITEX_HAS_BCVFS=1 -DSQLITEX_HAS_SESSION=1 -I/Users/affan/dev/cloudsqlite/include -I/Users/affan/dev/cloudsqlite/build-bcvfs -I/Users/affan/dev/cloudsqlite/third_party/sqlite3 -isystem /opt/homebrew/include -g -std=gnu++17 -arch arm64 -o CMakeFiles/changegroup_merge.dir/changegroup_merge.cpp.o -c /Users/affan/dev/cloudsqlite/examples/changegroup_merge.cpp",
+  "file": "/Users/affan/dev/cloudsqlite/examples/changegroup_merge.cpp",
+  "output": "examples/CMakeFiles/changegroup_merge.dir/changegroup_merge.cpp.o"
+},
+{
+  "directory": "/Users/affan/dev/cloudsqlite/build-bcvfs/examples",
+  "command": "/usr/bin/c++ -DSQLITEX_HAS_BCVFS=1 -DSQLITEX_HAS_SESSION=1 -I/Users/affan/dev/cloudsqlite/include -I/Users/affan/dev/cloudsqlite/build-bcvfs -I/Users/affan/dev/cloudsqlite/third_party/sqlite3 -isystem /opt/homebrew/include -g -std=gnu++17 -arch arm64 -o CMakeFiles/bcvfs_basic.dir/bcvfs_basic.cpp.o -c /Users/affan/dev/cloudsqlite/examples/bcvfs_basic.cpp",
+  "file": "/Users/affan/dev/cloudsqlite/examples/bcvfs_basic.cpp",
+  "output": "examples/CMakeFiles/bcvfs_basic.dir/bcvfs_basic.cpp.o"
+}
+]
