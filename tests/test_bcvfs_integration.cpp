@@ -12,6 +12,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cstdio>
 #include <cstring>
@@ -29,16 +30,16 @@ namespace {
 // Constants
 // ============================================================================
 
-static constexpr const char* kAzuriteHost = "127.0.0.1";
-static constexpr int kAzuritePort = 10000;
-static constexpr const char* kAzuriteAccount = "devstoreaccount1";
-static constexpr const char* kAzuriteKey =
+constexpr const char* kAzuriteHost = "127.0.0.1";
+constexpr int kAzuritePort = 10000;
+constexpr const char* kAzuriteAccount = "devstoreaccount1";
+constexpr const char* kAzuriteKey =
     "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/"
     "K1SZFPTOtr/KBHBeksoGMGw==";
 
-static const std::string kStorage = "azure?emulator=127.0.0.1:10000";
-static constexpr const char* kVfsName = "bcvfs-test";
-static constexpr const char* kContainerPrefix = "bcvfsint";
+const std::string kStorage = "azure?emulator=127.0.0.1:10000";
+constexpr const char* kVfsName = "bcvfs-test";
+constexpr const char* kContainerPrefix = "bcvfsint";
 
 // ============================================================================
 // bcVFS C API helpers (extern "C" — symbols resolved from libsqlitex.a)
@@ -58,48 +59,58 @@ int sqlite3_bcv_destroy(sqlite3_bcv*);
 // Azurite helpers
 // ============================================================================
 
-static bool is_azurite_running() {
-    std::string cmd =
+bool is_azurite_running() {
+    std::string const cmd =
         "curl -s -o /dev/null -w '%{http_code}' --connect-timeout 1 "
         "--max-time 2 'http://" +
         std::string(kAzuriteHost) + ":" + std::to_string(kAzuritePort) + "/" +
         kAzuriteAccount + "' 2>/dev/null";
     FILE* pipe = popen(cmd.c_str(), "r");
-    if (!pipe) return false;
-    char buf[16] = {};
-    fread(buf, 1, sizeof(buf) - 1, pipe);
+    if (pipe == nullptr) {
+        return false;
+    }
+    std::array<char, 16> buf = {};
+    const size_t n = fread(buf.data(), 1, buf.size() - 1, pipe);
     pclose(pipe);
-    try { return std::stoi(std::string(buf)) > 0; } catch (...) { return false; }
+    try {
+        return std::stoi(std::string(buf.data(), n)) > 0;
+    } catch (...) {
+        return false;
+    }
 }
 
-static bool create_container(const std::string& name) {
+bool create_container(const std::string& name) {
     sqlite3_bcv* bcv = nullptr;
     int rc = sqlite3_bcv_open(kStorage.c_str(), kAzuriteAccount, kAzuriteKey,
                                name.c_str(), &bcv);
-    if (rc != 0 || bcv == nullptr) return false;
+    if (rc != 0 || bcv == nullptr) {
+        return false;
+    }
     rc = sqlite3_bcv_create(bcv, 16, 4194304);
     sqlite3_bcv_close(bcv);
     return rc == 0;
 }
 
-static bool delete_container(const std::string& name) {
+bool delete_container(const std::string& name) {
     sqlite3_bcv* bcv = nullptr;
-    int rc = sqlite3_bcv_open(kStorage.c_str(), kAzuriteAccount, kAzuriteKey,
-                               name.c_str(), &bcv);
-    if (rc != 0 || bcv == nullptr) return false;
+    int const rc = sqlite3_bcv_open(kStorage.c_str(), kAzuriteAccount,
+                                    kAzuriteKey, name.c_str(), &bcv);
+    if (rc != 0 || bcv == nullptr) {
+        return false;
+    }
     sqlite3_bcv_destroy(bcv);
     sqlite3_bcv_close(bcv);
     return true;
 }
 
-static std::string make_container_name(const std::string& test_name) {
+std::string make_container_name(const std::string& test_name) {
     static int counter = 0;
     auto now = std::chrono::system_clock::now().time_since_epoch().count();
     return std::string(kContainerPrefix) + "-" + test_name + "-" +
            std::to_string(now) + "-" + std::to_string(++counter);
 }
 
-static std::string test_cache_path() {
+std::string test_cache_path() {
     return (std::filesystem::temp_directory_path() / "bcvfs-int-cache").string();
 }
 
@@ -120,12 +131,14 @@ protected:
                          << kAzuritePort;
         }
 
-        std::string test_name =
+        std::string const test_name =
             ::testing::UnitTest::GetInstance()->current_test_info()->name();
         std::string clean;
-        for (char c : test_name) {
-            if (std::isalnum(static_cast<unsigned char>(c)))
-                clean += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        for (char const c : test_name) {
+            if (std::isalnum(static_cast<unsigned char>(c)) != 0) {
+                clean += static_cast<char>(
+                    std::tolower(static_cast<unsigned char>(c)));
+            }
         }
         container_name_ = make_container_name(clean.empty() ? "test" : clean);
         ASSERT_TRUE(create_container(container_name_))
@@ -136,7 +149,9 @@ protected:
     }
 
     void TearDown() override {
-        if (!container_name_.empty()) delete_container(container_name_);
+        if (!container_name_.empty()) {
+            delete_container(container_name_);
+        }
         if (!cache_dir_.empty()) {
             std::error_code ec;
             std::filesystem::remove_all(cache_dir_, ec);
@@ -174,7 +189,7 @@ TEST_F(BcvfsIntegrationTest, CreateConfigureAttach) {
     Bcvfs bcvfs = make_bcvfs();
 
     EXPECT_TRUE(bcvfs);
-    EXPECT_NE(bcvfs.vfs_name().size(), 0u);
+    EXPECT_NE(bcvfs.vfs_name().size(), 0U);
     EXPECT_FALSE(bcvfs.is_daemon());
 
     // Attach succeeds (manifest downloaded from emulator)
@@ -233,7 +248,7 @@ TEST_F(BcvfsIntegrationTest, TwoInstancesSameCache) {
 
     // Second instance with different VFS name — must use a different
     // cache dir because bcVFS takes exclusive ownership of the directory.
-    std::string cache2 = cache_dir_ + "-2";
+    std::string const cache2 = cache_dir_ + "-2";
     std::filesystem::create_directories(cache2);
     Bcvfs bcvfs2(cache2, "bcvfs-b");
     bcvfs2.set_auth_callback(
@@ -312,9 +327,11 @@ TEST_F(BcvfsIntegrationTest, MoveSemantics) {
     attach_container(bcvfs1);
     EXPECT_TRUE(bcvfs1);
 
-    Bcvfs bcvfs2(std::move(bcvfs1));
+    Bcvfs const bcvfs2(std::move(bcvfs1));
     EXPECT_TRUE(bcvfs2);
-    EXPECT_FALSE(bcvfs1);
+    // Intentionally inspect the moved-from object: Bcvfs guarantees a valid,
+    // empty state after move, which is exactly what this test verifies.
+    EXPECT_FALSE(bcvfs1); // NOLINT(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
 // ============================================================================
