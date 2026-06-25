@@ -1,5 +1,9 @@
 #include <sqlitex/sqlitex.h>
 
+// Uses the raw SQLite C API directly (sqlite3_malloc), so it includes
+// <sqlite3.h> explicitly.
+#include <sqlite3.h>
+
 #include <gtest/gtest.h>
 
 namespace sqlitex {

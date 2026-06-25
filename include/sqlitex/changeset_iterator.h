@@ -4,7 +4,6 @@
 
 #include "sqlitex/error.h"
 
-#include <sqlite3.h>
 #include "sqlitex/detail/session_api.h"
 
 #include <cstdint>

@@ -1,5 +1,9 @@
 #include <sqlitex/sqlitex.h>
 
+// Uses the raw SQLite C API directly (sqlite3_declare_vtab, sqlite3*), so it
+// includes <sqlite3.h> explicitly rather than relying on sqlitex headers.
+#include <sqlite3.h>
+
 #include <gtest/gtest.h>
 
 #include <algorithm>

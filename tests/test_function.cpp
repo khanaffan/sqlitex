@@ -1,5 +1,9 @@
 #include <sqlitex/sqlitex.h>
 
+// Uses raw SQLite C API flags directly (SQLITE_DETERMINISTIC,
+// SQLITE_RESULT_SUBTYPE), so it includes <sqlite3.h> explicitly.
+#include <sqlite3.h>
+
 #include "test_helpers.h"
 
 #include <gtest/gtest.h>

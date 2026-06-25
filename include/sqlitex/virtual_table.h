@@ -4,7 +4,7 @@
 
 #include "sqlitex/value.h"
 
-#include <sqlite3.h>
+#include "sqlitex/detail/sqlite3_fwd.h"
 
 #include <functional>
 #include <memory>
@@ -59,67 +59,40 @@ class SQLITEX_EXPORT IndexInfo {
 
     // --- Input accessors ---
 
-    int num_constraints() const noexcept {
-        return info_->nConstraint;
-    }
-    Constraint constraint(int i) const noexcept {
-        auto& c = info_->aConstraint[i];
-        return {c.iColumn, static_cast<Op>(c.op), c.usable != 0};
-    }
+    int num_constraints() const noexcept;
+    Constraint constraint(int i) const noexcept;
 
-    int num_order_by() const noexcept {
-        return info_->nOrderBy;
-    }
-    OrderBy order_by(int i) const noexcept {
-        auto& o = info_->aOrderBy[i];
-        return {o.iColumn, o.desc != 0};
-    }
+    int num_order_by() const noexcept;
+    OrderBy order_by(int i) const noexcept;
 
-    bool col_used(int column) const noexcept {
-        return (info_->colUsed & (static_cast<sqlite3_uint64>(1) << column)) !=
-               0;
-    }
+    bool col_used(int column) const noexcept;
 
     // --- Output setters ---
 
     /// Tell SQLite that a constraint does not need to be checked again.
-    void set_omit(int constraint_index, bool omit = true) {
-        info_->aConstraintUsage[constraint_index].omit = omit ? 1 : 0;
-    }
+    void set_omit(int constraint_index, bool omit = true);
 
     /// Assign an argv index to a constraint so its value is passed to filter().
-    void set_argv_index(int constraint_index, int argv_index) {
-        info_->aConstraintUsage[constraint_index].argvIndex = argv_index + 1;
-    }
+    void set_argv_index(int constraint_index, int argv_index);
 
     /// Set the index number passed to filter().
-    void set_idx_num(int num) noexcept {
-        info_->idxNum = num;
-    }
+    void set_idx_num(int num) noexcept;
 
     /// Set the index string passed to filter() (copied).
     void set_idx_str(const char* str);
     void set_idx_str(std::string_view str);
 
     /// Tell SQLite that the output is already ordered correctly.
-    void set_order_by_consumed(bool consumed) {
-        info_->orderByConsumed = consumed ? 1 : 0;
-    }
+    void set_order_by_consumed(bool consumed);
 
     /// Set the estimated cost of this query plan.
-    void set_estimated_cost(double cost) {
-        info_->estimatedCost = cost;
-    }
+    void set_estimated_cost(double cost);
 
     /// Set the estimated number of rows returned.
-    void set_estimated_rows(int64_t rows) {
-        info_->estimatedRows = rows;
-    }
+    void set_estimated_rows(int64_t rows);
 
     /// Set the index flags (e.g. SQLITE_INDEX_SCAN_UNIQUE).
-    void set_idx_flags(int flags) noexcept {
-        info_->idxFlags = flags;
-    }
+    void set_idx_flags(int flags) noexcept;
 
     // --- Raw access ---
     sqlite3_index_info* handle() noexcept {

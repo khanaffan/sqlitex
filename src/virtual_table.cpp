@@ -28,6 +28,56 @@ void IndexInfo::set_idx_str(std::string_view str) {
     info_->needToFreeIdxStr = 0; // we own the memory
 }
 
+int IndexInfo::num_constraints() const noexcept {
+    return info_->nConstraint;
+}
+
+IndexInfo::Constraint IndexInfo::constraint(int i) const noexcept {
+    auto& c = info_->aConstraint[i];
+    return {c.iColumn, static_cast<Op>(c.op), c.usable != 0};
+}
+
+int IndexInfo::num_order_by() const noexcept {
+    return info_->nOrderBy;
+}
+
+IndexInfo::OrderBy IndexInfo::order_by(int i) const noexcept {
+    auto& o = info_->aOrderBy[i];
+    return {o.iColumn, o.desc != 0};
+}
+
+bool IndexInfo::col_used(int column) const noexcept {
+    return (info_->colUsed & (static_cast<sqlite3_uint64>(1) << column)) != 0;
+}
+
+void IndexInfo::set_omit(int constraint_index, bool omit) {
+    info_->aConstraintUsage[constraint_index].omit = omit ? 1 : 0;
+}
+
+void IndexInfo::set_argv_index(int constraint_index, int argv_index) {
+    info_->aConstraintUsage[constraint_index].argvIndex = argv_index + 1;
+}
+
+void IndexInfo::set_idx_num(int num) noexcept {
+    info_->idxNum = num;
+}
+
+void IndexInfo::set_order_by_consumed(bool consumed) {
+    info_->orderByConsumed = consumed ? 1 : 0;
+}
+
+void IndexInfo::set_estimated_cost(double cost) {
+    info_->estimatedCost = cost;
+}
+
+void IndexInfo::set_estimated_rows(int64_t rows) {
+    info_->estimatedRows = rows;
+}
+
+void IndexInfo::set_idx_flags(int flags) noexcept {
+    info_->idxFlags = flags;
+}
+
 // ============================================================================
 // ModuleRegistration
 // ============================================================================

@@ -4,7 +4,7 @@
 
 #include "sqlitex/value.h"
 
-#include <sqlite3.h>
+#include "sqlitex/detail/sqlite3_fwd.h"
 
 #include <functional>
 #include <memory>

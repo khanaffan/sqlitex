@@ -15,6 +15,10 @@
 
 #ifndef SQLITEX_SESSION_IN_HEADER
 
+// sqlite3, sqlite3_value and sqlite3_int64 (referenced by the prototypes
+// below) are forward-declared here without pulling in <sqlite3.h>.
+#include "sqlitex/detail/sqlite3_fwd.h"
+
 // Opaque types
 struct sqlite3_session;
 struct sqlite3_changeset_iter;

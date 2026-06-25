@@ -2,7 +2,7 @@
 
 #include "sqlitex_export.h"
 
-#include <sqlite3.h>
+#include "sqlitex/detail/sqlite3_fwd.h"
 
 #include <cstdint>
 #include <string>

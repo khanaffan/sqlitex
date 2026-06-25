@@ -1,6 +1,6 @@
 #pragma once
 
-#include <sqlite3.h>
+#include "sqlitex/detail/sqlite3_fwd.h"
 
 #include <cstddef>
 #include <memory>

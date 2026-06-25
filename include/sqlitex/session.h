@@ -5,7 +5,6 @@
 #include "sqlitex/error.h"
 #include "sqlitex/changeset.h"
 
-#include <sqlite3.h>
 #include "sqlitex/detail/session_api.h"
 
 #include <functional>

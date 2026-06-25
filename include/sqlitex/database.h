@@ -7,7 +7,7 @@
 #include "sqlitex/statement.h"
 #include "sqlitex/function.h"
 
-#include <sqlite3.h>
+#include "sqlitex/detail/sqlite3_fwd.h"
 
 #include <exception>
 #include <functional>

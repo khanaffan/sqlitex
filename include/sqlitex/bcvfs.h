@@ -4,8 +4,6 @@
 
 #include "sqlitex/error.h"
 
-#include <sqlite3.h>
-
 #include <chrono>
 #include <cstdint>
 #include <functional>
