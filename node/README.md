@@ -123,6 +123,78 @@ Loading the addon into a `worker_thread` is supported — each thread gets its
 own class constructors — but a single `Database` must not be shared across
 threads.
 
+## API
+
+Compile-time features: `capabilities.hasBcvfs` / `capabilities.hasSession`.
+Constructing a disabled API throws.
+
+| Export                   | Role                                                                                                |
+| ------------------------ | --------------------------------------------------------------------------------------------------- |
+| `Database`               | Connection: `open`, `execute`, `query`, `queryValue`, `close`                                       |
+| `Session`                | Record changes; extract `changeset()` / `patchset()`                                                |
+| `Changeset`              | `fromBuffer`, `toBuffer`, `invert`, `concat`, `apply`                                               |
+| `Patchset`               | Compact changeset (no UPDATE old values)                                                            |
+| `Changegroup`            | Merge changesets/patchsets, then `output()`                                                         |
+| `Bcvfs`                  | CloudSQLite VFS: `attach`, `upload`, `poll`, `detach`                                               |
+| `BcvContainer`           | Create/destroy containers; upload/download/delete DBs                                               |
+| `OpenFlag` / `ApplyFlag` | Bit flags for open and changeset apply                                                              |
+| `SqlitexError`           | Base error; subclasses: `RuntimeError`, `ConstraintError`, `BusyError`, `IoError`, `ChangesetError` |
+
+### Database
+
+```ts
+const db = await Database.open(path, { flags?, vfs?, bcvfs? });
+await db.execute(sql);
+const { columns, rows } = await db.query(sql);
+const value = await db.queryValue(sql); // first column of first row, or null
+db.lastInsertRowid();
+db.changes();
+db.setBusyTimeout(ms);
+db.interrupt();
+db.close(); // throws if a Session is still open
+```
+
+### Session / changeset
+
+```ts
+const session = new Session(db); // optional schema name, default "main"
+session.enable(true);
+session.attachAll(); // or attach("table")
+session.setTableFilter((table) => table !== "skip"); // sync only
+const cs = session.changeset();
+const ps = session.patchset();
+session.close();
+
+await cs.apply(db, {
+  onConflict: (info) => "omit", // "replace" | "abort"
+  flags: ApplyFlag.None,
+});
+Changeset.fromBuffer(cs.toBuffer());
+cs.invert();
+const group = new Changegroup();
+group.add(cs);
+group.output();
+```
+
+### CloudSQLite
+
+```ts
+await BcvContainer.create(creds);
+await BcvContainer.upload(creds, localPath, "app.db");
+
+const bcvfs = new Bcvfs({ cacheDir, auth: () => token });
+await bcvfs.attach({ storage, account, container, alias: "c" });
+const db = await Database.open("/c/app.db", {
+  flags: OpenFlag.ReadWrite,
+  bcvfs,
+});
+await bcvfs.upload("c");
+await bcvfs.poll("c");
+await bcvfs.detach("c");
+```
+
+JSDoc on the TypeScript sources is emitted into `dist/*.d.ts`.
+
 ## Packaging
 
 v0 is source-build only (`cmake-js compile` on `npm install`). A prebuild

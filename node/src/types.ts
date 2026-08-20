@@ -52,16 +52,21 @@ export interface ChangeInfo {
   readonly op: ChangeOp;
   readonly table: string;
   readonly columnCount: number;
+  /** True when the change was made by a trigger or FK action. */
   readonly indirect: boolean;
   readonly primaryKey: readonly boolean[];
+  /** Pre-image; empty for INSERT. */
   readonly oldValues: readonly SqlValue[];
+  /** Post-image; empty for DELETE. */
   readonly newValues: readonly SqlValue[];
 }
 
 /** {@link ChangeInfo} plus conflict-specific fields. */
 export interface ConflictInfo extends ChangeInfo {
   readonly type: ConflictType;
+  /** Conflicting destination values, when available. */
   readonly conflictValues: readonly SqlValue[];
+  /** Count of FK violations (`foreignKey` conflicts only). */
   readonly fkConflicts: number;
 }
 
@@ -73,19 +78,27 @@ export interface QueryResult {
 
 /** Options for {@link Database.open}. */
 export interface DatabaseOpenOptions {
+  /** Bitmask of {@link OpenFlag} values. */
   readonly flags?: number;
+  /** SQLite VFS name. Ignored when `bcvfs` is set. */
   readonly vfs?: string;
+  /** Open through this CloudSQLite VFS (`/alias/db` paths). */
   readonly bcvfs?: { readonly vfsName: string };
 }
 
 /** Construction options for {@link Bcvfs}. */
 export interface BcvfsOptions {
+  /** Local directory for the block cache. */
   readonly cacheDir: string;
+  /** SQLite VFS name to register. Default is assigned by the addon. */
   readonly vfsName?: string;
+  /** Cache size in bytes. */
   readonly cacheSize?: number;
+  /** Max concurrent HTTP requests. */
   readonly maxRequests?: number;
   readonly httpTimeoutSeconds?: number;
   readonly httpLogging?: boolean;
+  /** Static token or synchronous auth callback. */
   readonly auth?: string | BcvfsAuthCallback;
   readonly onLog?: (message: string) => void;
 }
@@ -105,9 +118,11 @@ export type BcvfsAuthCallback = (info: BcvfsAuthInfo) => string | false;
 
 /** Arguments to {@link Bcvfs.attach}. */
 export interface BcvfsAttachOptions {
+  /** Provider URI, e.g. `azure` or `azure?emulator=127.0.0.1:10000`. */
   readonly storage: string;
   readonly account: string;
   readonly container: string;
+  /** Local alias used in paths as `/alias/dbName`. */
   readonly alias: string;
 }
 
@@ -115,6 +130,7 @@ export interface BcvfsAttachOptions {
 export interface BcvContainerOptions {
   readonly storage: string;
   readonly account: string;
+  /** Account key or SAS token. */
   readonly auth: string;
   readonly container: string;
   readonly nameSize?: number;
@@ -123,9 +139,13 @@ export interface BcvContainerOptions {
 
 /** Options for {@link Changeset.apply} / {@link Patchset.apply}. */
 export interface ApplyOptions {
+  /** Must be synchronous. Return `omit` | `replace` | `abort`. */
   readonly onConflict?: (info: ConflictInfo) => ChangesetAction;
+  /** Skip tables for which this returns false. Synchronous. */
   readonly tableFilter?: (table: string) => boolean;
+  /** Skip individual changes for which this returns false. Synchronous. */
   readonly changeFilter?: (info: ChangeInfo) => boolean;
+  /** Bitmask of {@link ApplyFlag} values. */
   readonly flags?: number;
 }
 
