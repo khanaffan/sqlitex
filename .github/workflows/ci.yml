@@ -170,3 +170,149 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build-bcvfs --build-config Debug --output-on-failure --parallel
+
+  # ============================================================================
+  # Node.js lint/format (no native compile).
+  # ============================================================================
+  node-lint:
+    name: node lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Lint and format
+        working-directory: node
+        run: |
+          npm install --ignore-scripts
+          npm run lint
+          npm run format:check
+
+  # ============================================================================
+  # Node.js addon: unit tests on every supported Node major. Azurite tests run
+  # in the job below (they skip automatically if the emulator is absent).
+  # Electron is not supported.
+  # ============================================================================
+  node:
+    name: node (${{ matrix.os }}, ${{ matrix.node }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node: [18, 20, 22]
+        include:
+          - os: windows-latest
+            node: 20
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcurl4-openssl-dev libssl-dev cmake
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install curl openssl@3 cmake
+
+      - name: Install dependencies (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: vcpkg install curl openssl
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Build and test addon
+        working-directory: node
+        run: |
+          npm install
+          npm run build:ts
+          npm run test:unit
+
+  node-azurite:
+    name: node Azurite (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcurl4-openssl-dev libssl-dev cmake
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install curl openssl@3 cmake
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Azurite
+        run: npm install -g azurite
+
+      - name: Start Azurite
+        run: |
+          mkdir -p "${RUNNER_TEMP}/azurite"
+          azurite --silent --location "${RUNNER_TEMP}/azurite" &
+          for i in $(seq 1 30); do
+            if curl -s -o /dev/null http://127.0.0.1:10000/devstoreaccount1; then
+              echo "Azurite ready on attempt $i"
+              break
+            fi
+            echo "Waiting for Azurite... attempt $i"
+            sleep 1
+          done
+
+      - name: Build and test addon (including Azurite)
+        working-directory: node
+        run: |
+          npm install
+          npm run build:ts
+          npm test
+
+  node-asan:
+    name: node ASan/UBSan (ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcurl4-openssl-dev libssl-dev cmake
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build addon with sanitizers and run unit tests
+        working-directory: node
+        env:
+          ASAN_OPTIONS: detect_leaks=0:halt_on_error=0
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=0
+        run: |
+          npm install --ignore-scripts
+          node scripts/build-native.mjs --CDCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" --CDCMAKE_C_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" --CDCMAKE_SHARED_LINKER_FLAGS="-fsanitize=address,undefined"
+          npm run build:ts
+          npm run test:unit

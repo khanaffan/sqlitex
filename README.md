@@ -134,7 +134,23 @@ third_party/
   bcvfs/             bcVFS C sources (from upstream)
 tests/               Google Test suite
 examples/            Example programs
+node/                Node.js / TypeScript N-API addon
 ```
+
+## Node.js / TypeScript
+
+An in-repo N-API addon (`node/`) exposes CloudSQLite, session/changeset, and a
+minimal `Database` API. See [node/README.md](node/README.md).
+
+```bash
+cd node
+npm install
+npm test
+```
+
+Requires Node 18.18+, CMake 3.15+, and (for CloudSQLite) curl + OpenSSL.
+Azurite-backed tests skip automatically unless the emulator is already running
+on `127.0.0.1:10000`. Electron is not supported. v0 is source-build only.
 
 ## API Overview
 

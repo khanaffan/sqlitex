@@ -1,0 +1,61 @@
+{
+  "name": "sqlitex",
+  "version": "0.1.0",
+  "description": "TypeScript/Node.js bindings for sqlitex (CloudSQLite + session/changeset)",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "native",
+    "CMakeLists.txt",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18.18.0"
+  },
+  "scripts": {
+    "install": "node scripts/build-native.mjs",
+    "build": "npm run build:native && npm run build:ts",
+    "build:native": "node scripts/build-native.mjs",
+    "build:ts": "tsc -p tsconfig.json",
+    "test": "tsx --test test/*.test.ts test/*.azurite.test.ts",
+    "test:unit": "tsx --test test/*.test.ts",
+    "test:azurite": "tsx --test test/*.azurite.test.ts",
+    "azurite": "azurite --silent --location /tmp/sqlitex-azurite --debug /tmp/sqlitex-azurite/debug.log",
+    "example:session": "tsx examples/session.ts",
+    "example:cloud": "tsx examples/cloud.ts",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "cmake-js": "^7.3.1",
+    "node-addon-api": "^8.3.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^20.17.16",
+    "eslint": "^10.8.1",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.11.0",
+    "prettier": "^3.9.6",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.67.0"
+  },
+  "cmake-js": {
+    "runtime": "node"
+  }
+}

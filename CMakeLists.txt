@@ -12,6 +12,7 @@ option(SQLITEX_BCVFS "Build with bcvfs (Block Cache VFS) support" ON)
 option(SQLITEX_SESSION "Build with session/changeset support" ON)
 option(SQLITEX_BUILD_EXAMPLES "Build example programs" ON)
 option(SQLITEX_BUILD_TESTS "Build tests (uses Google Test via FetchContent)" ON)
+option(SQLITEX_BUILD_NODE "Build the Node.js N-API addon (cmake-js)" OFF)
 option(SQLITEX_LINT "Enable clang-tidy static analysis during build" OFF)
 
 # ============================================================================
@@ -194,6 +195,9 @@ endif()
 # ============================================================================
 add_library(sqlitex ${SQLITEX_SOURCES} ${SQLITEX_HEADERS})
 
+# Required so the static archive can be linked into the Node .node MODULE.
+set_target_properties(sqlitex PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 # DLL export/import support for Windows shared library builds
 include(GenerateExportHeader)
 generate_export_header(sqlitex
@@ -330,4 +334,13 @@ endif()
 # ============================================================================
 if(SQLITEX_BUILD_EXAMPLES)
     add_subdirectory(examples)
+endif()
+
+# ============================================================================
+# Node.js N-API addon
+# ============================================================================
+# Built either via cmake-js from node/ (preferred) or from this tree when
+# SQLITEX_BUILD_NODE=ON and CMAKE_JS_* variables are provided.
+if(SQLITEX_BUILD_NODE AND NOT CMAKE_SOURCE_DIR STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}/node")
+    add_subdirectory(node)
 endif()
