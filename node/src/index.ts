@@ -1,3 +1,12 @@
+/**
+ * TypeScript bindings for sqlitex: a minimal `Database`, CloudSQLite
+ * (`Bcvfs` / `BcvContainer`), and session/changeset APIs.
+ *
+ * Feature availability is reported by {@link capabilities}. Constructing a
+ * disabled API throws instead of omitting the export.
+ *
+ * @packageDocumentation
+ */
 export { capabilities } from "./native.js";
 export { Database } from "./database.js";
 export { Session } from "./session.js";

@@ -1,3 +1,4 @@
+/** SQLite `sqlite3_open_v2` flags. Combine with bitwise OR. */
 export const OpenFlag = {
   ReadOnly: 0x00000001,
   ReadWrite: 0x00000002,
@@ -12,6 +13,7 @@ export const OpenFlag = {
 
 export type OpenFlagName = keyof typeof OpenFlag;
 
+/** Flags for {@link ApplyOptions.flags} (`sqlite3changeset_apply_v2`). */
 export const ApplyFlag = {
   None: 0,
   NoSavepoint: 0x0001,
@@ -20,15 +22,32 @@ export const ApplyFlag = {
   FkNoAction: 0x0008,
 } as const;
 
+/** Value returned from queries and changeset iterators. */
 export type SqlValue = number | bigint | string | Buffer | null;
 
+/** Kind of row change in a changeset. */
 export type ChangeOp = "insert" | "delete" | "update";
 
+/**
+ * Why {@link ApplyOptions.onConflict} was invoked.
+ *
+ * - `data` — destination row differs from the changeset old values
+ * - `notFound` — expected row is missing
+ * - `conflict` — INSERT into an existing PRIMARY KEY
+ * - `constraint` — CHECK / UNIQUE / NOT NULL
+ * - `foreignKey` — FK violations after the apply (`fkConflicts`)
+ */
 export type ConflictType =
   "data" | "notFound" | "conflict" | "constraint" | "foreignKey";
 
+/**
+ * How to resolve a conflict:
+ * `omit` keeps the local row, `replace` takes the changeset, `abort`
+ * rolls the apply back.
+ */
 export type ChangesetAction = "omit" | "replace" | "abort";
 
+/** One change record, as passed to conflict/change filters. */
 export interface ChangeInfo {
   readonly op: ChangeOp;
   readonly table: string;
@@ -39,23 +58,27 @@ export interface ChangeInfo {
   readonly newValues: readonly SqlValue[];
 }
 
+/** {@link ChangeInfo} plus conflict-specific fields. */
 export interface ConflictInfo extends ChangeInfo {
   readonly type: ConflictType;
   readonly conflictValues: readonly SqlValue[];
   readonly fkConflicts: number;
 }
 
+/** Result of {@link Database.query}. */
 export interface QueryResult {
   readonly columns: readonly string[];
   readonly rows: ReadonlyArray<Readonly<Record<string, SqlValue>>>;
 }
 
+/** Options for {@link Database.open}. */
 export interface DatabaseOpenOptions {
   readonly flags?: number;
   readonly vfs?: string;
   readonly bcvfs?: { readonly vfsName: string };
 }
 
+/** Construction options for {@link Bcvfs}. */
 export interface BcvfsOptions {
   readonly cacheDir: string;
   readonly vfsName?: string;
@@ -67,14 +90,20 @@ export interface BcvfsOptions {
   readonly onLog?: (message: string) => void;
 }
 
+/** Identity of the container an auth callback is asked to authorize. */
 export interface BcvfsAuthInfo {
   readonly storage: string;
   readonly account: string;
   readonly container: string;
 }
 
+/**
+ * Return an auth token, or `false` to deny. Must be synchronous; a Promise
+ * is rejected.
+ */
 export type BcvfsAuthCallback = (info: BcvfsAuthInfo) => string | false;
 
+/** Arguments to {@link Bcvfs.attach}. */
 export interface BcvfsAttachOptions {
   readonly storage: string;
   readonly account: string;
@@ -82,6 +111,7 @@ export interface BcvfsAttachOptions {
   readonly alias: string;
 }
 
+/** Cloud credentials and layout for {@link BcvContainer} operations. */
 export interface BcvContainerOptions {
   readonly storage: string;
   readonly account: string;
@@ -91,6 +121,7 @@ export interface BcvContainerOptions {
   readonly blockSize?: number;
 }
 
+/** Options for {@link Changeset.apply} / {@link Patchset.apply}. */
 export interface ApplyOptions {
   readonly onConflict?: (info: ConflictInfo) => ChangesetAction;
   readonly tableFilter?: (table: string) => boolean;
@@ -98,6 +129,7 @@ export interface ApplyOptions {
   readonly flags?: number;
 }
 
+/** Compile-time features of the loaded native addon. See {@link capabilities}. */
 export interface Capabilities {
   readonly hasBcvfs: boolean;
   readonly hasSession: boolean;

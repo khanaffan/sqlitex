@@ -1,3 +1,4 @@
+/** Coarse classification of a native SQLite / sqlitex failure. */
 export type SqlitexErrorKind =
   | "error"
   | "runtime"
@@ -21,9 +22,16 @@ export type SqlitexErrorKind =
   | "changeset"
   | "changesetApply";
 
+/**
+ * Base error thrown by the addon. `code` / `extendedCode` are SQLite result
+ * codes when the failure originated in SQLite; otherwise `code` is `-1`.
+ */
 export class SqlitexError extends Error {
+  /** SQLite primary result code, or `-1` if not from SQLite. */
   readonly code: number;
+  /** SQLite extended result code, or `0` if unavailable. */
   readonly extendedCode: number;
+  /** Normalized error kind used to pick a subclass. */
   readonly kind: SqlitexErrorKind;
 
   constructor(
@@ -46,6 +54,7 @@ export class SqlitexError extends Error {
   }
 }
 
+/** SQL or runtime failure (`SQLITE_ERROR` and similar). */
 export class RuntimeError extends SqlitexError {
   constructor(
     message: string,
@@ -56,6 +65,7 @@ export class RuntimeError extends SqlitexError {
   }
 }
 
+/** Constraint violation (`SQLITE_CONSTRAINT`). */
 export class ConstraintError extends SqlitexError {
   constructor(
     message: string,
@@ -66,6 +76,7 @@ export class ConstraintError extends SqlitexError {
   }
 }
 
+/** Database is locked (`SQLITE_BUSY` / `SQLITE_LOCKED`). */
 export class BusyError extends SqlitexError {
   constructor(
     message: string,
@@ -76,6 +87,7 @@ export class BusyError extends SqlitexError {
   }
 }
 
+/** Filesystem or network I/O failure (`SQLITE_IOERR`). */
 export class IoError extends SqlitexError {
   constructor(
     message: string,
@@ -86,6 +98,7 @@ export class IoError extends SqlitexError {
   }
 }
 
+/** Session/changeset failure, including an aborted apply. */
 export class ChangesetError extends SqlitexError {
   constructor(
     message: string,
@@ -108,6 +121,7 @@ function isNativeLike(err: unknown): err is NativeLikeError {
   return typeof err === "object" && err !== null && "message" in err;
 }
 
+/** @internal Map a native throw into a {@link SqlitexError} subclass. */
 export function wrapNativeError(err: unknown): SqlitexError {
   if (err instanceof SqlitexError) {
     return err;
@@ -139,6 +153,7 @@ export function wrapNativeError(err: unknown): SqlitexError {
   }
 }
 
+/** @internal Await `fn` and wrap any rejection. */
 export async function rethrow<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
@@ -147,6 +162,7 @@ export async function rethrow<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
+/** @internal Call `fn` and wrap any thrown value. */
 export function rethrowSync<T>(fn: () => T): T {
   try {
     return fn();

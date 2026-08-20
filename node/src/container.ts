@@ -12,18 +12,29 @@ function requireContainer(): NonNullable<typeof native.NativeBcvContainer> {
   return native.NativeBcvContainer;
 }
 
+/**
+ * Manage CloudSQLite containers and the database files inside them
+ * (create/destroy, upload/download/delete) without a live {@link Bcvfs}.
+ *
+ * Requires `SQLITEX_BCVFS=ON`.
+ */
 export class BcvContainer {
+  /** Create an empty container in cloud storage. */
   static async create(options: BcvContainerOptions): Promise<void> {
     const api = requireContainer();
     await rethrow(() => api.create(options));
   }
 
+  /** Destroy the container and its contents. */
   static async destroy(options: BcvContainerOptions): Promise<void> {
     const api = requireContainer();
     await rethrow(() => api.destroy(options));
   }
 
-  /** Uploads a local SQLite database file into the container. */
+  /**
+   * Upload a local SQLite database file into the container so bcVFS can
+   * open it by `remoteName`.
+   */
   static async upload(
     options: BcvContainerOptions,
     localPath: string,
@@ -33,7 +44,7 @@ export class BcvContainer {
     await rethrow(() => api.upload(options, localPath, remoteName));
   }
 
-  /** Downloads a database from the container to a local file. */
+  /** Download a database from the container to `localPath`. */
   static async download(
     options: BcvContainerOptions,
     remoteName: string,
@@ -43,7 +54,7 @@ export class BcvContainer {
     await rethrow(() => api.download(options, remoteName, localPath));
   }
 
-  /** Deletes a database from the container. */
+  /** Delete a database from the container by remote name. */
   static async delete(
     options: BcvContainerOptions,
     remoteName: string,

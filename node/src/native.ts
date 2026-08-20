@@ -165,4 +165,11 @@ function loadAddon(): NativeAddon {
 }
 
 export const native: NativeAddon = loadAddon();
+
+/**
+ * Feature flags of the loaded native addon.
+ *
+ * `hasBcvfs` is false when built with `SQLITEX_BCVFS=OFF`.
+ * `hasSession` is false when built with `SQLITEX_SESSION=OFF`.
+ */
 export const capabilities: NativeCapabilities = native.capabilities;
