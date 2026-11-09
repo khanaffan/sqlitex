@@ -2,6 +2,8 @@
 #include "sqlitex/database.h"
 #include "sqlitex/error.h"
 
+#include "policy_internal.h"
+
 #include <sqlite3.h>
 
 #include <cstring>
@@ -20,6 +22,8 @@ BlobIO::BlobIO(Database& db, std::string_view db_name, std::string_view table,
     std::string db_str(db_name);
     std::string tbl_str(table);
     std::string col_str(column);
+
+    detail::check_blob_access(db, db_name, table, column, readwrite);
 
     sqlite3_blob* raw = nullptr;
     int rc = sqlite3_blob_open(db_->handle(), db_str.c_str(), tbl_str.c_str(),

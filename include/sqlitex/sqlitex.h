@@ -19,6 +19,9 @@
 // Blob I/O
 #include "sqlitex/blobio.h"
 
+// Scoped authorizer policies
+#include "sqlitex/policy.h"
+
 // Custom SQL functions and virtual tables
 #include "sqlitex/function.h"
 #include "sqlitex/virtual_table.h"

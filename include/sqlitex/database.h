@@ -24,6 +24,10 @@ class Statement;
 class Session;
 class VirtualTable;
 class ModuleRegistration;
+class ScopedPolicy;
+namespace detail {
+struct PolicyAccess;
+} // namespace detail
 
 // ============================================================================
 // Open flags
@@ -68,7 +72,7 @@ class SQLITEX_EXPORT Database {
                                         static_cast<int>(OpenFlag::Create),
                       std::string_view vfs = {});
 
-    ~Database() = default;
+    ~Database();
 
     // Move-only
     Database(Database&& other) noexcept;
@@ -272,6 +276,10 @@ class SQLITEX_EXPORT Database {
         }
     };
     std::unique_ptr<sqlite3, Deleter> db_holder_{};
+
+    friend struct detail::PolicyAccess;
+    /// Innermost active ScopedPolicy; guards must not outlive the connection.
+    ScopedPolicy* policy_ = nullptr;
 };
 
 // ============================================================================

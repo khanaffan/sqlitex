@@ -3,6 +3,8 @@
 #include "sqlitex/database.h"
 #include "sqlitex/error.h"
 
+#include "policy_internal.h"
+
 #include <sqlite3.h>
 
 #include <cstring>
@@ -214,11 +216,13 @@ void Changeset::apply(
     TableFilter tf = table_filter ? std::move(table_filter) : nullptr;
     ApplyCtxV2 ctx{&conflict_handler, tf ? &tf : nullptr};
 
+    detail::AuthSink sink(db.handle(), true);
     int rc = sqlite3changeset_apply_v2(
         db.handle(), size_, data_.get(), tf ? table_filter_shim_v2 : nullptr,
         conflict_shim_v2, &ctx, nullptr, nullptr, 0);
 
     if (rc != SQLITE_OK) {
+        sink.check(rc);
         throw ChangesetApplyError(
             ErrorCode::Error,
             std::string("changeset apply failed: ") + std::string(db.errmsg()));
@@ -232,11 +236,13 @@ void Changeset::apply_v2(
     ApplyFlags flags) const {
     ApplyCtxV2 ctx{&conflict_handler, nullptr};
 
+    detail::AuthSink sink(db.handle(), true);
     int rc = sqlite3changeset_apply_v2(db.handle(), size_, data_.get(), nullptr,
                                        conflict_shim_v2, &ctx, nullptr, nullptr,
                                        static_cast<int>(flags));
 
     if (rc != SQLITE_OK) {
+        sink.check(rc);
         throw ChangesetApplyError(ErrorCode::Error,
                                   std::string("changeset apply_v2 failed: ") +
                                       std::string(db.errmsg()));
@@ -253,11 +259,13 @@ void Changeset::apply_v3(
         per_change_filter ? std::move(per_change_filter) : nullptr;
     ApplyCtxV3 ctx{&conflict_handler, cf ? &cf : nullptr};
 
+    detail::AuthSink sink(db.handle(), true);
     int rc = sqlite3changeset_apply_v3(
         db.handle(), size_, data_.get(), cf ? change_filter_shim_v3 : nullptr,
         conflict_shim_v3, &ctx, nullptr, nullptr, static_cast<int>(flags));
 
     if (rc != SQLITE_OK) {
+        sink.check(rc);
         throw ChangesetApplyError(ErrorCode::Error,
                                   std::string("changeset apply_v3 failed: ") +
                                       std::string(db.errmsg()));
@@ -277,12 +285,14 @@ void Changeset::apply_stream(
     TableFilter tf = table_filter ? std::move(table_filter) : nullptr;
     ApplyStrmCtxV2 ctx{&input, &conflict_handler, tf ? &tf : nullptr};
 
+    detail::AuthSink sink(db.handle(), true);
     int rc = sqlite3changeset_apply_strm(
         db.handle(), strm_input_shim_v2, &ctx,
         tf ? strm_table_filter_shim : nullptr,
         strm_conflict_shim, &ctx);
 
     if (rc != SQLITE_OK) {
+        sink.check(rc);
         throw ChangesetApplyError(
             ErrorCode::Error,
             std::string("changeset apply_stream failed: ") +
@@ -298,12 +308,14 @@ void Changeset::apply_v2_stream(
     ApplyFlags flags) {
     ApplyStrmCtxV2 ctx{&input, &conflict_handler, nullptr};
 
+    detail::AuthSink sink(db.handle(), true);
     int rc = sqlite3changeset_apply_v2_strm(
         db.handle(), strm_input_shim_v2, &ctx, nullptr,
         strm_conflict_shim, &ctx, nullptr, nullptr,
         static_cast<int>(flags));
 
     if (rc != SQLITE_OK) {
+        sink.check(rc);
         throw ChangesetApplyError(
             ErrorCode::Error,
             std::string("changeset apply_v2_stream failed: ") +
@@ -379,11 +391,13 @@ void Patchset::apply(
     TableFilter tf = table_filter ? std::move(table_filter) : nullptr;
     ApplyCtxV2 ctx{&conflict_handler, tf ? &tf : nullptr};
 
+    detail::AuthSink sink(db.handle(), true);
     int rc = sqlite3changeset_apply_v2(
         db.handle(), size_, data_.get(), tf ? table_filter_shim_v2 : nullptr,
         conflict_shim_v2, &ctx, nullptr, nullptr, 0);
 
     if (rc != SQLITE_OK) {
+        sink.check(rc);
         throw ChangesetApplyError(
             ErrorCode::Error,
             std::string("patchset apply failed: ") + std::string(db.errmsg()));
@@ -399,12 +413,14 @@ void Patchset::apply_stream(
     TableFilter tf = table_filter ? std::move(table_filter) : nullptr;
     ApplyStrmCtxV2 ctx{&input, &conflict_handler, tf ? &tf : nullptr};
 
+    detail::AuthSink sink(db.handle(), true);
     int rc = sqlite3changeset_apply_strm(
         db.handle(), strm_input_shim_v2, &ctx,
         tf ? strm_table_filter_shim : nullptr,
         strm_conflict_shim, &ctx);
 
     if (rc != SQLITE_OK) {
+        sink.check(rc);
         throw ChangesetApplyError(
             ErrorCode::Error,
             std::string("patchset apply_stream failed: ") +

@@ -3,8 +3,11 @@
 #include "sqlitex/statement.h"
 #include "sqlitex/virtual_table.h"
 
+#include "policy_internal.h"
+
 #include <sqlite3.h>
 
+#include <cassert>
 #include <cstring>
 #include <memory>
 #include <string>
@@ -21,14 +24,21 @@ Database::Database(std::string_view path, OpenFlags flags,
     open(path, flags, vfs);
 }
 
-// unique_ptr handles close
+Database::~Database() {
+    assert(policy_ == nullptr &&
+           "Database destroyed while a ScopedPolicy is active");
+}
 
 Database::Database(Database&& other) noexcept
     : db_holder_(std::move(other.db_holder_)) {
+    assert(other.policy_ == nullptr &&
+           "Database moved while a ScopedPolicy is active");
 }
 
 Database& Database::operator=(Database&& other) noexcept {
     if (this != &other) {
+        assert(other.policy_ == nullptr &&
+               "Database moved while a ScopedPolicy is active");
         close();
         db_holder_ = std::move(other.db_holder_);
     }
@@ -62,6 +72,8 @@ void Database::open(std::string_view path, OpenFlags flags,
 }
 
 void Database::close() noexcept {
+    assert(policy_ == nullptr &&
+           "Database closed while a ScopedPolicy is active");
     db_holder_.reset();
 }
 
@@ -74,8 +86,10 @@ Statement Database::prepare(std::string_view sql) {
     const char* tail = nullptr;
     std::string sql_str(sql);
 
+    detail::AuthSink sink(db_holder_.get());
     int rc = sqlite3_prepare_v2(db_holder_.get(), sql_str.c_str(),
                                 static_cast<int>(sql_str.size()), &stmt, &tail);
+    sink.check(rc);
     throw_on_error(rc, db_holder_.get());
 
     return {stmt, this};
@@ -85,11 +99,13 @@ void Database::execute(std::string_view sql) {
     std::string sql_str(sql);
     char* err_msg = nullptr;
 
+    detail::AuthSink sink(db_holder_.get());
     int rc = sqlite3_exec(db_holder_.get(), sql_str.c_str(), nullptr, nullptr, &err_msg);
     if (rc != SQLITE_OK) {
         // err_msg may carry more detail than sqlite3_errmsg; use it when present.
         std::string msg(err_msg ? err_msg : sqlite3_errmsg(db_holder_.get()));
         sqlite3_free(err_msg);
+        sink.check(rc, msg.c_str());
         throw_on_error(rc, msg.c_str());
     }
 }
@@ -121,6 +137,7 @@ void Database::exec(std::string_view sql, RowCallback cb) {
     };
 
     char* err_msg = nullptr;
+    detail::AuthSink sink(db_holder_.get());
     int rc = sqlite3_exec(db_holder_.get(), sql_str.c_str(), exec_cb, &ctx, &err_msg);
     sqlite3_free(err_msg);
 
@@ -128,6 +145,7 @@ void Database::exec(std::string_view sql, RowCallback cb) {
     if (pending_exc) {
         std::rethrow_exception(pending_exc);
     }
+    sink.check(rc);
 
     // SQLITE_ABORT is the normal result when the callback returned false to
     // stop early.  Treat it as a clean stop rather than an error.

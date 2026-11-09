@@ -11,6 +11,7 @@ set(TEST_SOURCES
     test_function.cpp
     test_virtual_table.cpp
     test_blobio.cpp
+    test_policy.cpp
     test_bcvfs.cpp
 )
 

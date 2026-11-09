@@ -3,6 +3,8 @@
 #include "sqlitex/error.h"
 #include "sqlitex/value.h"
 
+#include "policy_internal.h"
+
 #include <sqlite3.h>
 
 #include <cstring>
@@ -109,7 +111,10 @@ Statement& Statement::bind(int index, const Value& value) {
 // ============================================================================
 
 bool Statement::step() {
+    // step may reprepare or compile SQL internally, which is authorized.
+    detail::AuthSink sink(sqlite3_db_handle(stmt_));
     int const rc = sqlite3_step(stmt_);
+    sink.check(rc);
     if (rc == SQLITE_ROW) {
         return true;
     }

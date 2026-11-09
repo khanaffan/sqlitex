@@ -107,6 +107,8 @@ set(SQLITEX_SOURCES
     src/statement.cpp
     src/function.cpp
     src/blobio.cpp
+    src/policy.cpp
+    src/policy_internal.h
     src/virtual_table.cpp
     src/bcvfs.cpp
 )
@@ -119,6 +121,7 @@ set(SQLITEX_HEADERS
     include/sqlitex/function.h
     include/sqlitex/virtual_table.h
     include/sqlitex/blobio.h
+    include/sqlitex/policy.h
     include/sqlitex/value.h
     include/sqlitex/detail/blob.h
     include/sqlitex/detail/callbacks.h

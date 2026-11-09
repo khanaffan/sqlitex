@@ -85,8 +85,9 @@ cmake --build build --config Release
 ### With bcVFS support
 
 bcVFS source files are bundled in `third_party/bcvfs/` (fetched from the
-[SQLite CloudSQLite repository](https://sqlite.org/cloudsqlite/)). They are
-found automatically. To override:
+[SQLite CloudSQLite repository](https://sqlite.org/cloudsqlite/), check-in
+`843dff88c1`, with small local portability patches for MSVC and older OpenSSL).
+They are found automatically. To override:
 
 ```bash
 cmake .. -DSQLITEX_BCVFS_SOURCE_DIR=/path/to/bcvfs/sources
@@ -130,8 +131,8 @@ ctest --test-dir build
 include/sqlitex/     Public headers
 src/                 C++ library source
 third_party/
-  sqlite3/           SQLite amalgamation (3.53.1)
-  bcvfs/             bcVFS C sources (from upstream)
+  sqlite3/           SQLite amalgamation (3.54.1)
+  bcvfs/             bcVFS C sources (CloudSQLite check-in 843dff88c1)
 tests/               Google Test suite
 examples/            Example programs
 ```
@@ -291,6 +292,78 @@ bcvfs.upload("mydata");
 bcvfs.register_vtab(db);
 auto containers = db.query("SELECT * FROM bcv_container");
 ```
+
+### ScopedPolicy (scoped authorization)
+
+`sqlitex::ScopedPolicy` installs an SQLite authorizer for one C++ scope.
+Constraints are added while the guard is alive; its destructor removes them
+and restores the previous policy and any hardening settings it changed.
+
+```cpp
+{
+    sqlitex::ScopedPolicy policy(db);
+    policy.read_only()
+        .deny_table("audit_log")
+        .deny_column("users", "password_hash")
+        .defensive()
+        .trusted_schema(false);
+
+    // Custom rule.  Ignore is honored only for read-side redaction under
+    // read_only(): ssn reads as NULL.
+    policy.add([](const sqlitex::AuthorizerRequest& r) {
+        using sqlitex::AuthorizerAction;
+        using sqlitex::AuthorizerResult;
+        return r.action == AuthorizerAction::Read && r.arg1 == "users" &&
+                       r.arg2 == "ssn"
+                   ? AuthorizerResult::Ignore
+                   : AuthorizerResult::Allow;
+    });
+
+    auto rows = db.query("SELECT name, ssn FROM users");
+    // db.execute("DELETE FROM users");  // throws sqlitex::AuthError
+}   // previous authorizer and settings restored here
+```
+
+Constraints:
+
+- `add(callback)`: custom rule; callbacks run after built-ins, the first
+  `Deny` wins. A thrown exception denies the request and is rethrown from the
+  sqlitex call that compiled the SQL.
+- `deny(action)` and one `deny_*()` helper per `AuthorizerAction`.
+- `deny_table(name, schema)`, `deny_column(table, column, schema)`,
+  `deny_function(name)`, `deny_pragma(name)` (case-insensitive; empty schema
+  means any).
+- `read_only()`: queries, transactions, savepoints, and the introspection
+  pragmas `table_info`, `table_xinfo`, `index_list`, `index_info`,
+  `index_xinfo`, `foreign_key_list`, `data_version`. Everything else is denied.
+- `allow_only({actions...})`: deny every unlisted action; calls intersect.
+- Hardening (innermost guard only, restored LIFO): `defensive()`,
+  `trusted_schema()`, `triggers_enabled()`, `views_enabled()`,
+  `attach_create()`, `attach_write()`, `max_attached()`.
+
+Semantics and limits:
+
+- Nested guards replace the outer policy until they end. Hardening settings
+  are layered instead: inner guards inherit the current values.
+- Guards must be destroyed in LIFO order, and the `Database` must not be
+  closed, moved, or destroyed while a guard is alive (debug assertions).
+- Built-in transaction rules deny only `BEGIN` and `SAVEPOINT` creation, so
+  open transactions can always commit, roll back, or release.
+- `Ignore` from a custom rule becomes `Deny` unless the action is Read,
+  Function, Select, or Recursive under `read_only()`, and never applies inside
+  Session/Changeset operations (redacted values would corrupt changesets).
+- Helpers are strict and also deny SQLite's internal requests: for example
+  `deny_insert()` blocks `CREATE TABLE`, `deny_reindex()` blocks
+  `CREATE INDEX`, and `deny_attach()` blocks `VACUUM`.
+- `BlobIO` opens are checked as Read (plus Update when writable);
+  `BlobIO::reopen` and handles opened before the scope are not.
+- Authorization happens when SQL is compiled, including automatic re-prepare
+  during `step()`. Every scope change expires prepared statements.
+- SQLite does not authorize schema loading, CHECK constraints, VIRTUAL
+  generated columns, or expression/partial index expressions at use time; use
+  `trusted_schema(false)` to restrict functions there.
+- Raw `handle()` users see SQLite's codes; do not call
+  `sqlite3_set_authorizer` directly while guards are in use.
 
 ## Error Handling
 
