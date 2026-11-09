@@ -18,6 +18,7 @@
 
 #ifndef __WIN32__
 #include <unistd.h>
+#include <time.h>
 #endif
 
 #include <openssl/md5.h>
@@ -364,6 +365,26 @@ i64 sqlite_timestamp(void){
   sqlite3_vfs *pVfs = sqlite3_vfs_find(0);
   pVfs->xCurrentTimeInt64(pVfs, &iRet);
   return iRet;
+}
+
+/*
+** Return the current value of a monotonic clock in microseconds. The
+** value returned is only meaningful relative to other values returned
+** by this function - it is not related to wall-clock time.
+*/
+i64 bcv_timestamp(void){
+#ifdef __WIN32__
+  static LARGE_INTEGER freq = {{0, 0}};
+  LARGE_INTEGER now;
+  if( freq.QuadPart==0 ) QueryPerformanceFrequency(&freq);
+  QueryPerformanceCounter(&now);
+  return (i64)((now.QuadPart / freq.QuadPart) * 1000000
+             + ((now.QuadPart % freq.QuadPart) * 1000000) / freq.QuadPart);
+#else
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return (i64)ts.tv_sec * 1000000 + (i64)(ts.tv_nsec / 1000);
+#endif
 }
 
 
