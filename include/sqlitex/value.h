@@ -30,7 +30,8 @@ class SQLITEX_EXPORT Value {
 
     // --- Constructors ---
 
-    Value() noexcept : data_(std::monostate{}) {}
+    Value() noexcept : data_(std::monostate{}) {
+    }
 
     Value(std::nullptr_t) noexcept : data_(std::monostate{}) {
     }
@@ -198,5 +199,102 @@ inline const std::vector<uint8_t>& Value::as_blob() const {
 inline bool Value::operator==(const Value& other) const {
     return data_ == other.data_;
 }
+
+// ============================================================================
+// ValueRef — non-owning view of sqlite3_value*
+// ============================================================================
+
+class ProtectedValue;
+
+class SQLITEX_EXPORT ValueRef {
+    public:
+    explicit ValueRef(sqlite3_value* val = nullptr) noexcept : val_(val) {
+    }
+
+    explicit operator bool() const noexcept {
+        return val_ != nullptr;
+    }
+
+    sqlite3_value* handle() const noexcept {
+        return val_;
+    }
+
+    /// SQLite storage class constant (SQLITE_INTEGER, SQLITE_FLOAT, etc.).
+    int type() const noexcept;
+
+    /// Best-fit numeric type (sqlite3_value_numeric_type).
+    int numeric_type() const noexcept;
+
+    /// Text encoding constant (SQLITE_UTF8, etc.).
+    int encoding() const noexcept;
+
+    /// Subtype attached via sqlite3_result_subtype().
+    unsigned int subtype() const noexcept;
+
+    /// True if column value is unchanged in an UPDATE on a virtual table.
+    bool nochange() const noexcept;
+
+    /// True if value originated from a bound parameter.
+    bool from_bind() const noexcept;
+
+    bool is_null() const noexcept;
+    int32_t as_int() const noexcept;
+    int64_t as_int64() const noexcept;
+    double as_double() const noexcept;
+    std::string_view as_text() const noexcept;
+    const void* as_blob() const noexcept;
+    int bytes() const noexcept;
+
+    /// Retrieve an opaque pointer bound/returned with `type_name`
+    /// (sqlite3_value_pointer). Returns nullptr if type does not match.
+    void* pointer(const char* type_name) const noexcept;
+
+    /// Convert to an owned Value copy.
+    Value to_value() const;
+
+    /// Duplicate into an owned ProtectedValue (sqlite3_value_dup).
+    [[nodiscard]] ProtectedValue dup() const;
+
+    private:
+    sqlite3_value* val_ = nullptr;
+};
+
+// ============================================================================
+// ProtectedValue — RAII wrapper for sqlite3_value_dup() / sqlite3_value_free()
+// ============================================================================
+
+class SQLITEX_EXPORT ProtectedValue {
+    public:
+    ProtectedValue() noexcept = default;
+    explicit ProtectedValue(sqlite3_value* owned) noexcept : val_(owned) {
+    }
+    ~ProtectedValue();
+
+    ProtectedValue(ProtectedValue&& other) noexcept;
+    ProtectedValue& operator=(ProtectedValue&& other) noexcept;
+    ProtectedValue(const ProtectedValue&) = delete;
+    ProtectedValue& operator=(const ProtectedValue&) = delete;
+
+    /// Duplicate a sqlite3_value* (sqlite3_value_dup).
+    [[nodiscard]] static ProtectedValue dup(const sqlite3_value* val);
+    [[nodiscard]] static ProtectedValue dup(const ValueRef& ref);
+
+    explicit operator bool() const noexcept {
+        return val_ != nullptr;
+    }
+
+    sqlite3_value* handle() const noexcept {
+        return val_;
+    }
+
+    ValueRef ref() const noexcept {
+        return ValueRef(val_);
+    }
+
+    Value to_value() const;
+
+    private:
+    sqlite3_value* val_ = nullptr;
+};
 
 } // namespace sqlitex

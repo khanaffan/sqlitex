@@ -16,16 +16,25 @@ namespace sqlitex {
 // ============================================================================
 
 void IndexInfo::set_idx_str(const char* str) {
-    idx_str_storage_ = str ? std::string(str) : std::string();
-    info_->idxStr =
-        idx_str_storage_.empty() ? nullptr : idx_str_storage_.data();
-    info_->needToFreeIdxStr = 0; // we own the memory
+    if (info_->needToFreeIdxStr && info_->idxStr != nullptr) {
+        sqlite3_free(info_->idxStr);
+    }
+    if (str == nullptr) {
+        info_->idxStr = nullptr;
+        info_->needToFreeIdxStr = 0;
+        return;
+    }
+    info_->idxStr = sqlite3_mprintf("%s", str);
+    info_->needToFreeIdxStr = 1;
 }
 
 void IndexInfo::set_idx_str(std::string_view str) {
-    idx_str_storage_.assign(str.data(), str.size());
-    info_->idxStr = idx_str_storage_.data();
-    info_->needToFreeIdxStr = 0; // we own the memory
+    if (info_->needToFreeIdxStr && info_->idxStr != nullptr) {
+        sqlite3_free(info_->idxStr);
+    }
+    info_->idxStr = sqlite3_mprintf("%.*s", static_cast<int>(str.size()),
+                                    str.empty() ? "" : str.data());
+    info_->needToFreeIdxStr = 1;
 }
 
 int IndexInfo::num_constraints() const noexcept {
@@ -76,6 +85,93 @@ void IndexInfo::set_estimated_rows(int64_t rows) {
 
 void IndexInfo::set_idx_flags(int flags) noexcept {
     info_->idxFlags = flags;
+}
+
+std::string_view IndexInfo::collation(int constraint_index) const noexcept {
+    const char* name = sqlite3_vtab_collation(info_, constraint_index);
+    return name ? std::string_view(name) : std::string_view{};
+}
+
+int IndexInfo::distinct() const noexcept {
+    return sqlite3_vtab_distinct(info_);
+}
+
+bool IndexInfo::set_in(int constraint_index, int handle_mode) noexcept {
+    return sqlite3_vtab_in(info_, constraint_index, handle_mode) != 0;
+}
+
+std::optional<Value> IndexInfo::rhs_value(int constraint_index) const {
+    sqlite3_value* val = nullptr;
+    int rc = sqlite3_vtab_rhs_value(info_, constraint_index, &val);
+    if (rc == SQLITE_OK && val != nullptr) {
+        return Value::from_sqlite3_value(val);
+    }
+    return std::nullopt;
+}
+
+// ============================================================================
+// VtabInIterator & Cursor::filter_raw & VirtualTable static helpers
+// ============================================================================
+
+VtabInIterator::VtabInIterator(sqlite3_value* in_list) noexcept
+    : in_list_(in_list), done_(in_list == nullptr) {
+}
+
+bool VtabInIterator::next() {
+    if (done_) {
+        return false;
+    }
+    int rc = 0;
+    if (!started_) {
+        started_ = true;
+        rc = sqlite3_vtab_in_first(in_list_, &current_);
+    } else {
+        rc = sqlite3_vtab_in_next(in_list_, &current_);
+    }
+    if (rc == SQLITE_OK) {
+        return true;
+    }
+    done_ = true;
+    current_ = nullptr;
+    if (rc != SQLITE_DONE) {
+        throw_sqlite_error(rc, nullptr);
+    }
+    return false;
+}
+
+std::vector<Value> VtabInIterator::collect(sqlite3_value* in_list) {
+    std::vector<Value> out;
+    VtabInIterator it(in_list);
+    while (it.next()) {
+        out.push_back(it.current_value());
+    }
+    return out;
+}
+
+int Cursor::filter_raw(int idx_num, const char* idx_str,
+                       const std::vector<ValueRef>& argv) {
+    std::vector<Value> owned;
+    owned.reserve(argv.size());
+    for (const auto& ref : argv) {
+        owned.push_back(ref.to_value());
+    }
+    return filter(idx_num, idx_str, owned);
+}
+
+int VirtualTable::declare_vtab(sqlite3* db, std::string_view schema) {
+    std::string schema_str(schema);
+    return sqlite3_declare_vtab(db, schema_str.c_str());
+}
+
+int VirtualTable::vtab_config(sqlite3* db, VtabConfig op, int val) {
+    if (op == VtabConfig::ConstraintSupport) {
+        return sqlite3_vtab_config(db, static_cast<int>(op), val);
+    }
+    return sqlite3_vtab_config(db, static_cast<int>(op));
+}
+
+int VirtualTable::vtab_on_conflict(sqlite3* db) noexcept {
+    return sqlite3_vtab_on_conflict(db);
 }
 
 // ============================================================================
@@ -299,13 +395,13 @@ static int xClose_shim(sqlite3_vtab_cursor* cur) {
 static int xFilter_shim(sqlite3_vtab_cursor* cur, int idx_num,
                         const char* idx_str, int argc, sqlite3_value** argv) {
     try {
-        // Convert argv to Value vector for type-safe access
-        std::vector<sqlitex::Value> args;
+        std::vector<sqlitex::ValueRef> args;
         args.reserve(static_cast<std::size_t>(argc));
         for (int i = 0; i < argc; ++i) {
-            args.push_back(sqlitex::Value::from_sqlite3_value(argv[i]));
+            args.emplace_back(argv[i]);
         }
-        return sqlitex::detail::from_cursor(cur)->impl->filter(idx_num, idx_str, args);
+        return sqlitex::detail::from_cursor(cur)->impl->filter_raw(
+            idx_num, idx_str, args);
     } catch (...) {
         return SQLITE_ERROR;
     }
@@ -486,8 +582,7 @@ static sqlite3_module make_module() {
 
 ModuleRegistration create_module_impl(
     sqlite3* db, std::string_view name,
-    std::function<std::unique_ptr<VirtualTable>()> factory,
-    int flags) {
+    std::function<std::unique_ptr<VirtualTable>()> factory, int flags) {
     // sqlite3_create_module_v2 does not accept a flags parameter.
     // SQLITE_VTAB_INNOCUOUS must be set on the xConnect method instead.
     (void)flags;

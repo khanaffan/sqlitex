@@ -285,16 +285,14 @@ int ChangesetIterator::fk_conflict_count() const {
 // Streaming factory
 // ============================================================================
 
-ChangesetIterator ChangesetIterator::from_stream(
-    StreamInputFunc input, int flags) {
+ChangesetIterator ChangesetIterator::from_stream(StreamInputFunc input,
+                                                 int flags) {
     auto input_ptr = std::make_unique<StreamInputFunc>(std::move(input));
     sqlite3_changeset_iter* iter = nullptr;
 
-    int rc = sqlite3changeset_start_v2_strm(
-        &iter,
-        detail::stream_input_shim,
-        static_cast<void*>(input_ptr.get()),
-        flags);
+    int rc = sqlite3changeset_start_v2_strm(&iter, detail::stream_input_shim,
+                                            static_cast<void*>(input_ptr.get()),
+                                            flags);
     throw_on_error(rc, "sqlite3changeset_start_v2_strm failed");
 
     ChangesetIterator result(iter);

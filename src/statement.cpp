@@ -106,6 +106,134 @@ Statement& Statement::bind(int index, const Value& value) {
     return *this;
 }
 
+Statement& Statement::bind_zeroblob(int index, int size) {
+    throw_on_error(sqlite3_bind_zeroblob(stmt_, index, size), db_->handle());
+    return *this;
+}
+
+Statement& Statement::bind_zeroblob64(int index, uint64_t size) {
+    throw_on_error(sqlite3_bind_zeroblob64(stmt_, index,
+                                           static_cast<sqlite3_uint64>(size)),
+                   db_->handle());
+    return *this;
+}
+
+Statement& Statement::bind_static(int index, std::string_view value) {
+    throw_on_error(
+        sqlite3_bind_text(stmt_, index, value.data(),
+                          static_cast<int>(value.size()), SQLITE_STATIC),
+        db_->handle());
+    return *this;
+}
+
+Statement& Statement::bind_static(int index, const void* blob, int size) {
+    throw_on_error(sqlite3_bind_blob(stmt_, index, blob, size, SQLITE_STATIC),
+                   db_->handle());
+    return *this;
+}
+
+Statement& Statement::bind_blob64(int index, const void* blob, uint64_t size,
+                                  void (*destructor)(void*)) {
+    throw_on_error(sqlite3_bind_blob64(
+                       stmt_, index, blob, static_cast<sqlite3_uint64>(size),
+                       destructor ? destructor : SQLITE_TRANSIENT),
+                   db_->handle());
+    return *this;
+}
+
+Statement& Statement::bind_text64(int index, const char* text, uint64_t size,
+                                  unsigned char encoding,
+                                  void (*destructor)(void*)) {
+    throw_on_error(sqlite3_bind_text64(
+                       stmt_, index, text, static_cast<sqlite3_uint64>(size),
+                       destructor ? destructor : SQLITE_TRANSIENT, encoding),
+                   db_->handle());
+    return *this;
+}
+
+Statement& Statement::bind_pointer(int index, void* ptr, const char* type_name,
+                                   void (*destructor)(void*)) {
+    throw_on_error(
+        sqlite3_bind_pointer(stmt_, index, ptr, type_name, destructor),
+        db_->handle());
+    return *this;
+}
+
+Statement& Statement::bind_value(int index, const ValueRef& val) {
+    throw_on_error(sqlite3_bind_value(stmt_, index, val.handle()),
+                   db_->handle());
+    return *this;
+}
+
+Statement& Statement::bind_value(int index, const ProtectedValue& val) {
+    throw_on_error(sqlite3_bind_value(stmt_, index, val.handle()),
+                   db_->handle());
+    return *this;
+}
+
+Statement& Statement::bind_carray(int index, void* data, int count,
+                                  CArrayType type, void (*destructor)(void*)) {
+    throw_on_error(sqlite3_carray_bind(stmt_, index, data, count,
+                                       static_cast<int>(type), destructor),
+                   db_->handle());
+    return *this;
+}
+
+Statement& Statement::bind_carray_v2(int index, void* data, int count,
+                                     CArrayType type, void (*destructor)(void*),
+                                     void* del_arg) {
+    throw_on_error(
+        sqlite3_carray_bind_v2(stmt_, index, data, count,
+                               static_cast<int>(type), destructor, del_arg),
+        db_->handle());
+    return *this;
+}
+
+Statement& Statement::bind_carray(int index,
+                                  const std::vector<int32_t>& values) {
+    if (values.empty()) {
+        return bind_carray(index, nullptr, 0, CArrayType::Int32, SQLITE_STATIC);
+    }
+    return bind_carray(index, const_cast<int32_t*>(values.data()),
+                       static_cast<int>(values.size()), CArrayType::Int32,
+                       SQLITE_TRANSIENT);
+}
+
+Statement& Statement::bind_carray(int index,
+                                  const std::vector<int64_t>& values) {
+    if (values.empty()) {
+        return bind_carray(index, nullptr, 0, CArrayType::Int64, SQLITE_STATIC);
+    }
+    return bind_carray(index, const_cast<int64_t*>(values.data()),
+                       static_cast<int>(values.size()), CArrayType::Int64,
+                       SQLITE_TRANSIENT);
+}
+
+Statement& Statement::bind_carray(int index,
+                                  const std::vector<double>& values) {
+    if (values.empty()) {
+        return bind_carray(index, nullptr, 0, CArrayType::Double,
+                           SQLITE_STATIC);
+    }
+    return bind_carray(index, const_cast<double*>(values.data()),
+                       static_cast<int>(values.size()), CArrayType::Double,
+                       SQLITE_TRANSIENT);
+}
+
+Statement& Statement::bind_carray(int index,
+                                  const std::vector<std::string>& values) {
+    if (values.empty()) {
+        return bind_carray(index, nullptr, 0, CArrayType::Text, SQLITE_STATIC);
+    }
+    std::vector<const char*> ptrs;
+    ptrs.reserve(values.size());
+    for (const auto& s : values) {
+        ptrs.push_back(s.c_str());
+    }
+    return bind_carray(index, ptrs.data(), static_cast<int>(ptrs.size()),
+                       CArrayType::Text, SQLITE_TRANSIENT);
+}
+
 // ============================================================================
 // Execution
 // ============================================================================
@@ -145,6 +273,10 @@ int Statement::column_count() const noexcept {
     return sqlite3_column_count(stmt_);
 }
 
+int Statement::data_count() const noexcept {
+    return sqlite3_data_count(stmt_);
+}
+
 int Statement::column_type(int index) const noexcept {
     return sqlite3_column_type(stmt_, index);
 }
@@ -157,6 +289,25 @@ std::string_view Statement::column_name(int index) const noexcept {
 std::string_view Statement::column_decltype(int index) const noexcept {
     const char* dt = sqlite3_column_decltype(stmt_, index);
     return dt ? std::string_view(dt) : std::string_view{};
+}
+
+std::string_view Statement::column_database_name(int index) const noexcept {
+    const char* name = sqlite3_column_database_name(stmt_, index);
+    return name ? std::string_view(name) : std::string_view{};
+}
+
+std::string_view Statement::column_table_name(int index) const noexcept {
+    const char* name = sqlite3_column_table_name(stmt_, index);
+    return name ? std::string_view(name) : std::string_view{};
+}
+
+std::string_view Statement::column_origin_name(int index) const noexcept {
+    const char* name = sqlite3_column_origin_name(stmt_, index);
+    return name ? std::string_view(name) : std::string_view{};
+}
+
+ValueRef Statement::column_raw_value(int index) const noexcept {
+    return ValueRef(sqlite3_column_value(stmt_, index));
 }
 
 Value Statement::column_value(int index) const {
@@ -284,6 +435,22 @@ bool Statement::is_explain() const noexcept {
     return sqlite3_stmt_isexplain(stmt_) != 0;
 }
 
+ExplainMode Statement::explain_mode() const noexcept {
+    int m = sqlite3_stmt_isexplain(stmt_);
+    if (m == 1) {
+        return ExplainMode::Explain;
+    }
+    if (m == 2) {
+        return ExplainMode::QueryPlan;
+    }
+    return ExplainMode::Normal;
+}
+
+void Statement::set_explain(ExplainMode mode) {
+    int rc = sqlite3_stmt_explain(stmt_, static_cast<int>(mode));
+    throw_on_error(rc, db_ ? db_->handle() : nullptr);
+}
+
 std::string_view Statement::sql() const noexcept {
     const char* s = sqlite3_sql(stmt_);
     return s ? std::string_view(s) : std::string_view{};
@@ -297,6 +464,73 @@ std::string Statement::expanded_sql() const {
     std::string result(s);
     sqlite3_free(s);
     return result;
+}
+
+std::string_view Statement::normalized_sql() const noexcept {
+    const char* s = sqlite3_normalized_sql(stmt_);
+    return s ? std::string_view(s) : std::string_view{};
+}
+
+int Statement::status(StmtStatusOp op, bool reset) noexcept {
+    return sqlite3_stmt_status(stmt_, static_cast<int>(op), reset ? 1 : 0);
+}
+
+std::vector<ScanStatusEntry> Statement::scanstatus(int flags) const {
+    std::vector<ScanStatusEntry> entries;
+    for (int idx = 0;; ++idx) {
+        sqlite3_int64 nloop = 0;
+        if (sqlite3_stmt_scanstatus_v2(stmt_, idx, SQLITE_SCANSTAT_NLOOP, flags,
+                                       &nloop) != 0) {
+            break;
+        }
+        ScanStatusEntry e;
+        e.nloop = static_cast<int64_t>(nloop);
+
+        sqlite3_int64 nvisit = 0;
+        if (sqlite3_stmt_scanstatus_v2(stmt_, idx, SQLITE_SCANSTAT_NVISIT,
+                                       flags, &nvisit) == 0) {
+            e.nvisit = static_cast<int64_t>(nvisit);
+        }
+        double est = 0.0;
+        if (sqlite3_stmt_scanstatus_v2(stmt_, idx, SQLITE_SCANSTAT_EST, flags,
+                                       &est) == 0) {
+            e.est = est;
+        }
+        const char* name = nullptr;
+        if (sqlite3_stmt_scanstatus_v2(stmt_, idx, SQLITE_SCANSTAT_NAME, flags,
+                                       &name) == 0 &&
+            name != nullptr) {
+            e.name = name;
+        }
+        const char* explain = nullptr;
+        if (sqlite3_stmt_scanstatus_v2(stmt_, idx, SQLITE_SCANSTAT_EXPLAIN,
+                                       flags, &explain) == 0 &&
+            explain != nullptr) {
+            e.explain = explain;
+        }
+        int select_id = 0;
+        if (sqlite3_stmt_scanstatus_v2(stmt_, idx, SQLITE_SCANSTAT_SELECTID,
+                                       flags, &select_id) == 0) {
+            e.select_id = select_id;
+        }
+        int parent_id = 0;
+        if (sqlite3_stmt_scanstatus_v2(stmt_, idx, SQLITE_SCANSTAT_PARENTID,
+                                       flags, &parent_id) == 0) {
+            e.parent_id = parent_id;
+        }
+        sqlite3_int64 ncycle = 0;
+        if (sqlite3_stmt_scanstatus_v2(stmt_, idx, SQLITE_SCANSTAT_NCYCLE,
+                                       flags, &ncycle) == 0) {
+            e.ncycle = static_cast<int64_t>(ncycle);
+        }
+
+        entries.push_back(std::move(e));
+    }
+    return entries;
+}
+
+void Statement::scanstatus_reset() noexcept {
+    sqlite3_stmt_scanstatus_reset(stmt_);
 }
 
 } // namespace sqlitex

@@ -5,11 +5,16 @@
 # Collect all test sources
 set(TEST_SOURCES
     test_error.cpp
+    test_sqlite_global.cpp
     test_value.cpp
     test_database.cpp
+    test_database_advanced.cpp
+    test_backup_snapshot.cpp
     test_statement.cpp
+    test_statement_value_vtab.cpp
     test_function.cpp
     test_virtual_table.cpp
+    test_extensions_fts5_rtree.cpp
     test_blobio.cpp
     test_policy.cpp
     test_bcvfs.cpp
@@ -20,11 +25,15 @@ if(SQLITEX_HAS_SESSION)
         test_session.cpp
         test_changeset.cpp
         test_changegroup.cpp
+        test_session_rebaser.cpp
     )
 endif()
 
 if(SQLITEX_BCVFS)
-    list(APPEND TEST_SOURCES test_bcvfs_integration.cpp)
+    list(APPEND TEST_SOURCES
+        test_bcvfs_integration.cpp
+        test_cloudsqlite_offline.cpp
+    )
 endif()
 
 # Create the test executable

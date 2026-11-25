@@ -185,7 +185,8 @@ int strm_table_filter_shim(void* ctx, const char* tbl_name) {
                                                                            : 0;
 }
 
-int strm_conflict_shim(void* ctx, int eConflict, sqlite3_changeset_iter* pIter) {
+int strm_conflict_shim(void* ctx, int eConflict,
+                       sqlite3_changeset_iter* pIter) {
     auto* ac = static_cast<ApplyStrmCtxV2*>(ctx);
     ChangesetIterator iter = ChangesetIterator::borrow(pIter);
     ChangesetAction action =
@@ -200,6 +201,70 @@ int strm_conflict_shim(void* ctx, int eConflict, sqlite3_changeset_iter* pIter) 
         return SQLITE_CHANGESET_ABORT;
     }
     return SQLITE_CHANGESET_OMIT;
+}
+
+struct ApplyStrmCtxV3 {
+    StreamInputFunc* input{};
+    ConflictHandler* conflict{};
+    ChangeFilter* change_filter{};
+};
+
+int strm_input_shim_v3(void* ctx, void* data, int* pn) {
+    auto* ac = static_cast<ApplyStrmCtxV3*>(ctx);
+    int sz = *pn;
+    int rc = (*ac->input)(data, sz);
+    *pn = sz;
+    return rc;
+}
+
+int strm_change_filter_shim_v3(void* ctx, sqlite3_changeset_iter* pIter) {
+    auto* ac = static_cast<ApplyStrmCtxV3*>(ctx);
+    if (!ac->change_filter || !(*ac->change_filter)) {
+        return 1;
+    }
+    ChangesetIterator iter = ChangesetIterator::borrow(pIter);
+    bool result = (*ac->change_filter)(iter);
+    iter.release_ownership();
+    return result ? 1 : 0;
+}
+
+int strm_conflict_shim_v3(void* ctx, int eConflict,
+                          sqlite3_changeset_iter* pIter) {
+    auto* ac = static_cast<ApplyStrmCtxV3*>(ctx);
+    ChangesetIterator iter = ChangesetIterator::borrow(pIter);
+    ChangesetAction action =
+        (*ac->conflict)(static_cast<ConflictType>(eConflict), iter);
+    iter.release_ownership();
+    switch (action) {
+    case ChangesetAction::Omit:
+        return SQLITE_CHANGESET_OMIT;
+    case ChangesetAction::Replace:
+        return SQLITE_CHANGESET_REPLACE;
+    case ChangesetAction::Abort:
+        return SQLITE_CHANGESET_ABORT;
+    }
+    return SQLITE_CHANGESET_OMIT;
+}
+
+struct RebaseGuard {
+    void* ptr = nullptr;
+    ~RebaseGuard() {
+        if (ptr != nullptr) {
+            sqlite3_free(ptr);
+        }
+    }
+};
+
+void copy_rebase_buffer(std::vector<uint8_t>* out, void* data, int n) {
+    if (out == nullptr) {
+        return;
+    }
+    if (data != nullptr && n > 0) {
+        const auto* bytes = static_cast<const uint8_t*>(data);
+        out->assign(bytes, bytes + n);
+    } else {
+        out->clear();
+    }
 }
 
 } // anonymous namespace
@@ -233,13 +298,16 @@ void Changeset::apply_v2(
     Database& db,
     std::function<ChangesetAction(ConflictType, const ChangesetIterator&)>
         conflict_handler,
-    ApplyFlags flags) const {
+    ApplyFlags flags, std::vector<uint8_t>* rebase_out) const {
     ApplyCtxV2 ctx{&conflict_handler, nullptr};
+    RebaseGuard rebase{};
+    int n_rebase = 0;
 
     detail::AuthSink sink(db.handle(), true);
-    int rc = sqlite3changeset_apply_v2(db.handle(), size_, data_.get(), nullptr,
-                                       conflict_shim_v2, &ctx, nullptr, nullptr,
-                                       static_cast<int>(flags));
+    int rc = sqlite3changeset_apply_v2(
+        db.handle(), size_, data_.get(), nullptr, conflict_shim_v2, &ctx,
+        rebase_out ? &rebase.ptr : nullptr, rebase_out ? &n_rebase : nullptr,
+        static_cast<int>(flags));
 
     if (rc != SQLITE_OK) {
         sink.check(rc);
@@ -247,6 +315,7 @@ void Changeset::apply_v2(
                                   std::string("changeset apply_v2 failed: ") +
                                       std::string(db.errmsg()));
     }
+    copy_rebase_buffer(rebase_out, rebase.ptr, n_rebase);
 }
 
 void Changeset::apply_v3(
@@ -254,15 +323,18 @@ void Changeset::apply_v3(
     std::function<ChangesetAction(ConflictType, const ChangesetIterator&)>
         conflict_handler,
     std::function<bool(const ChangesetIterator&)> per_change_filter,
-    ApplyFlags flags) const {
+    ApplyFlags flags, std::vector<uint8_t>* rebase_out) const {
     ChangeFilter cf =
         per_change_filter ? std::move(per_change_filter) : nullptr;
     ApplyCtxV3 ctx{&conflict_handler, cf ? &cf : nullptr};
+    RebaseGuard rebase{};
+    int n_rebase = 0;
 
     detail::AuthSink sink(db.handle(), true);
     int rc = sqlite3changeset_apply_v3(
         db.handle(), size_, data_.get(), cf ? change_filter_shim_v3 : nullptr,
-        conflict_shim_v3, &ctx, nullptr, nullptr, static_cast<int>(flags));
+        conflict_shim_v3, &ctx, rebase_out ? &rebase.ptr : nullptr,
+        rebase_out ? &n_rebase : nullptr, static_cast<int>(flags));
 
     if (rc != SQLITE_OK) {
         sink.check(rc);
@@ -270,6 +342,7 @@ void Changeset::apply_v3(
                                   std::string("changeset apply_v3 failed: ") +
                                       std::string(db.errmsg()));
     }
+    copy_rebase_buffer(rebase_out, rebase.ptr, n_rebase);
 }
 
 // ============================================================================
@@ -277,8 +350,7 @@ void Changeset::apply_v3(
 // ============================================================================
 
 void Changeset::apply_stream(
-    Database& db,
-    StreamInputFunc input,
+    Database& db, StreamInputFunc input,
     std::function<ChangesetAction(ConflictType, const ChangesetIterator&)>
         conflict_handler,
     std::function<bool(std::string_view)> table_filter) {
@@ -286,33 +358,32 @@ void Changeset::apply_stream(
     ApplyStrmCtxV2 ctx{&input, &conflict_handler, tf ? &tf : nullptr};
 
     detail::AuthSink sink(db.handle(), true);
-    int rc = sqlite3changeset_apply_strm(
-        db.handle(), strm_input_shim_v2, &ctx,
-        tf ? strm_table_filter_shim : nullptr,
-        strm_conflict_shim, &ctx);
+    int rc = sqlite3changeset_apply_strm(db.handle(), strm_input_shim_v2, &ctx,
+                                         tf ? strm_table_filter_shim : nullptr,
+                                         strm_conflict_shim, &ctx);
 
     if (rc != SQLITE_OK) {
         sink.check(rc);
         throw ChangesetApplyError(
-            ErrorCode::Error,
-            std::string("changeset apply_stream failed: ") +
-                std::string(db.errmsg()));
+            ErrorCode::Error, std::string("changeset apply_stream failed: ") +
+                                  std::string(db.errmsg()));
     }
 }
 
 void Changeset::apply_v2_stream(
-    Database& db,
-    StreamInputFunc input,
+    Database& db, StreamInputFunc input,
     std::function<ChangesetAction(ConflictType, const ChangesetIterator&)>
         conflict_handler,
-    ApplyFlags flags) {
+    ApplyFlags flags, std::vector<uint8_t>* rebase_out) {
     ApplyStrmCtxV2 ctx{&input, &conflict_handler, nullptr};
+    RebaseGuard rebase{};
+    int n_rebase = 0;
 
     detail::AuthSink sink(db.handle(), true);
     int rc = sqlite3changeset_apply_v2_strm(
-        db.handle(), strm_input_shim_v2, &ctx, nullptr,
-        strm_conflict_shim, &ctx, nullptr, nullptr,
-        static_cast<int>(flags));
+        db.handle(), strm_input_shim_v2, &ctx, nullptr, strm_conflict_shim,
+        &ctx, rebase_out ? &rebase.ptr : nullptr,
+        rebase_out ? &n_rebase : nullptr, static_cast<int>(flags));
 
     if (rc != SQLITE_OK) {
         sink.check(rc);
@@ -321,36 +392,60 @@ void Changeset::apply_v2_stream(
             std::string("changeset apply_v2_stream failed: ") +
                 std::string(db.errmsg()));
     }
+    copy_rebase_buffer(rebase_out, rebase.ptr, n_rebase);
+}
+
+void Changeset::apply_v3_stream(
+    Database& db, StreamInputFunc input,
+    std::function<ChangesetAction(ConflictType, const ChangesetIterator&)>
+        conflict_handler,
+    std::function<bool(const ChangesetIterator&)> per_change_filter,
+    ApplyFlags flags, std::vector<uint8_t>* rebase_out) {
+    ChangeFilter cf =
+        per_change_filter ? std::move(per_change_filter) : nullptr;
+    ApplyStrmCtxV3 ctx{&input, &conflict_handler, cf ? &cf : nullptr};
+    RebaseGuard rebase{};
+    int n_rebase = 0;
+
+    detail::AuthSink sink(db.handle(), true);
+    int rc = sqlite3changeset_apply_v3_strm(
+        db.handle(), strm_input_shim_v3, &ctx,
+        cf ? strm_change_filter_shim_v3 : nullptr, strm_conflict_shim_v3, &ctx,
+        rebase_out ? &rebase.ptr : nullptr, rebase_out ? &n_rebase : nullptr,
+        static_cast<int>(flags));
+
+    if (rc != SQLITE_OK) {
+        sink.check(rc);
+        throw ChangesetApplyError(
+            ErrorCode::Error,
+            std::string("changeset apply_v3_stream failed: ") +
+                std::string(db.errmsg()));
+    }
+    copy_rebase_buffer(rebase_out, rebase.ptr, n_rebase);
 }
 
 // ============================================================================
 // Changeset — streaming concat / invert
 // ============================================================================
 
-void Changeset::concat_stream(
-    StreamInputFunc input_a,
-    StreamInputFunc input_b,
-    StreamOutputFunc output) {
+void Changeset::concat_stream(StreamInputFunc input_a, StreamInputFunc input_b,
+                              StreamOutputFunc output) {
     void* ctx_a = static_cast<void*>(&input_a);
     void* ctx_b = static_cast<void*>(&input_b);
     void* ctx_out = static_cast<void*>(&output);
 
-    int rc = sqlite3changeset_concat_strm(
-        detail::stream_input_shim, ctx_a,
-        detail::stream_input_shim, ctx_b,
-        detail::stream_output_shim, ctx_out);
+    int rc = sqlite3changeset_concat_strm(detail::stream_input_shim, ctx_a,
+                                          detail::stream_input_shim, ctx_b,
+                                          detail::stream_output_shim, ctx_out);
     throw_on_error(rc, "sqlite3changeset_concat_strm failed");
 }
 
-void Changeset::invert_stream(
-    StreamInputFunc input,
-    StreamOutputFunc output) {
+void Changeset::invert_stream(StreamInputFunc input, StreamOutputFunc output) {
     void* ctx_in = static_cast<void*>(&input);
     void* ctx_out = static_cast<void*>(&output);
 
-    int rc = sqlite3changeset_invert_strm(
-        detail::stream_input_shim, ctx_in,
-        detail::stream_output_shim, ctx_out);
+    int rc = sqlite3changeset_invert_strm(detail::stream_input_shim, ctx_in,
+                                          detail::stream_output_shim, ctx_out);
     throw_on_error(rc, "sqlite3changeset_invert_strm failed");
 }
 
@@ -405,8 +500,7 @@ void Patchset::apply(
 }
 
 void Patchset::apply_stream(
-    Database& db,
-    StreamInputFunc input,
+    Database& db, StreamInputFunc input,
     std::function<ChangesetAction(ConflictType, const ChangesetIterator&)>
         conflict_handler,
     std::function<bool(std::string_view)> table_filter) {
@@ -414,17 +508,15 @@ void Patchset::apply_stream(
     ApplyStrmCtxV2 ctx{&input, &conflict_handler, tf ? &tf : nullptr};
 
     detail::AuthSink sink(db.handle(), true);
-    int rc = sqlite3changeset_apply_strm(
-        db.handle(), strm_input_shim_v2, &ctx,
-        tf ? strm_table_filter_shim : nullptr,
-        strm_conflict_shim, &ctx);
+    int rc = sqlite3changeset_apply_strm(db.handle(), strm_input_shim_v2, &ctx,
+                                         tf ? strm_table_filter_shim : nullptr,
+                                         strm_conflict_shim, &ctx);
 
     if (rc != SQLITE_OK) {
         sink.check(rc);
         throw ChangesetApplyError(
-            ErrorCode::Error,
-            std::string("patchset apply_stream failed: ") +
-                std::string(db.errmsg()));
+            ErrorCode::Error, std::string("patchset apply_stream failed: ") +
+                                  std::string(db.errmsg()));
     }
 }
 

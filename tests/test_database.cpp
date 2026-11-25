@@ -265,8 +265,8 @@ TEST(DatabaseTest, ExecCallbackCollectsRows) {
     db.exec("SELECT id, val FROM t ORDER BY id",
             [&](int ncols, char** values, char** names) -> bool {
                 EXPECT_EQ(ncols, 2);
-                rows.push_back({values[0] ? values[0] : "",
-                                values[1] ? values[1] : ""});
+                rows.push_back(
+                    {values[0] ? values[0] : "", values[1] ? values[1] : ""});
                 (void)names;
                 return true; // continue
             });
@@ -288,10 +288,10 @@ TEST(DatabaseTest, ExecCallbackReturnFalseStopsEarly) {
     int count = 0;
     // Returning false on the first row should stop iteration without throwing.
     EXPECT_NO_THROW(db.exec("SELECT id FROM t ORDER BY id",
-                             [&](int, char**, char**) -> bool {
-                                 ++count;
-                                 return false; // stop after first row
-                             }));
+                            [&](int, char**, char**) -> bool {
+                                ++count;
+                                return false; // stop after first row
+                            }));
     EXPECT_EQ(count, 1);
 }
 
@@ -301,9 +301,9 @@ TEST(DatabaseTest, ExecCallbackExceptionPropagates) {
     db.execute("INSERT INTO t VALUES (1)");
 
     EXPECT_THROW(db.exec("SELECT id FROM t",
-                          [](int, char**, char**) -> bool {
-                              throw std::runtime_error("callback error");
-                          }),
+                         [](int, char**, char**) -> bool {
+                             throw std::runtime_error("callback error");
+                         }),
                  std::runtime_error);
 }
 
@@ -389,11 +389,10 @@ TEST(DatabaseTest, ExecCallbackThrowsNonStdException) {
     db.execute("INSERT INTO t VALUES (1)");
 
     class CustomException {};
-    EXPECT_THROW(db.exec("SELECT id FROM t",
-                          [](int, char**, char**) -> bool {
-                              throw CustomException();
-                          }),
-                 CustomException);
+    EXPECT_THROW(
+        db.exec("SELECT id FROM t",
+                [](int, char**, char**) -> bool { throw CustomException(); }),
+        CustomException);
 }
 
 // ============================================================================
@@ -402,8 +401,9 @@ TEST(DatabaseTest, ExecCallbackThrowsNonStdException) {
 
 TEST(DatabaseTest, OpenWithVfs) {
     // Open with default (nullptr) VFS — should succeed
-    Database db(":memory:", static_cast<int>(OpenFlag::ReadWrite) |
-                                  static_cast<int>(OpenFlag::Create),
+    Database db(":memory:",
+                static_cast<int>(OpenFlag::ReadWrite) |
+                    static_cast<int>(OpenFlag::Create),
                 "");
     EXPECT_TRUE(db);
     db.execute("CREATE TABLE t (x INTEGER)");

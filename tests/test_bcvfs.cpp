@@ -14,8 +14,6 @@ inline std::string test_cache_path(const char* subdir = "sqlitex-test-cache") {
     return (std::filesystem::temp_directory_path() / subdir).string();
 }
 
-
-
 // ============================================================================
 // Enum tests
 // ============================================================================

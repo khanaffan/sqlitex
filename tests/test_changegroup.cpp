@@ -330,8 +330,7 @@ TEST_F(ChangegroupTest, AddAndOutputStreamRoundTrip) {
         return ChangesetAction::Abort;
     });
 
-    auto count =
-        target_.query_value<int64_t>("SELECT COUNT(*) FROM items");
+    auto count = target_.query_value<int64_t>("SELECT COUNT(*) FROM items");
     EXPECT_EQ(*count, 1);
 }
 

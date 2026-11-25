@@ -47,9 +47,8 @@ constexpr const char* kContainerPrefix = "bcvfsint";
 
 extern "C" {
 struct sqlite3_bcv;
-int sqlite3_bcv_open(const char* zModule, const char* zUser,
-                     const char* zAuth, const char* zContainer,
-                     sqlite3_bcv** ppOut);
+int sqlite3_bcv_open(const char* zModule, const char* zUser, const char* zAuth,
+                     const char* zContainer, sqlite3_bcv** ppOut);
 void sqlite3_bcv_close(sqlite3_bcv*);
 int sqlite3_bcv_create(sqlite3_bcv*, int szName, int szBlock);
 int sqlite3_bcv_destroy(sqlite3_bcv*);
@@ -74,11 +73,11 @@ bool is_azurite_running() {
     // bare account URL with 400, which still means it is up); a non-zero exit
     // means the connection was refused or timed out. Checking the exit status
     // avoids shell-specific quoting of the -w format string across platforms.
-    const std::string cmd =
-        std::string("curl -s -o ") + SQLITEX_DEVNULL +
-        " --connect-timeout 1 --max-time 2 \"http://" +
-        std::string(kAzuriteHost) + ":" + std::to_string(kAzuritePort) + "/" +
-        kAzuriteAccount + "\" 2>" + SQLITEX_DEVNULL;
+    const std::string cmd = std::string("curl -s -o ") + SQLITEX_DEVNULL +
+                            " --connect-timeout 1 --max-time 2 \"http://" +
+                            std::string(kAzuriteHost) + ":" +
+                            std::to_string(kAzuritePort) + "/" +
+                            kAzuriteAccount + "\" 2>" + SQLITEX_DEVNULL;
     FILE* pipe = SQLITEX_POPEN(cmd.c_str(), "r");
     if (pipe == nullptr) {
         return false;
@@ -93,7 +92,7 @@ bool is_azurite_running() {
 bool create_container(const std::string& name) {
     sqlite3_bcv* bcv = nullptr;
     int rc = sqlite3_bcv_open(kStorage.c_str(), kAzuriteAccount, kAzuriteKey,
-                               name.c_str(), &bcv);
+                              name.c_str(), &bcv);
     if (rc != 0 || bcv == nullptr) {
         return false;
     }
@@ -122,7 +121,8 @@ std::string make_container_name(const std::string& test_name) {
 }
 
 std::string test_cache_path() {
-    return (std::filesystem::temp_directory_path() / "bcvfs-int-cache").string();
+    return (std::filesystem::temp_directory_path() / "bcvfs-int-cache")
+        .string();
 }
 
 // ============================================================================
@@ -130,7 +130,7 @@ std::string test_cache_path() {
 // ============================================================================
 
 class BcvfsIntegrationTest : public ::testing::Test {
-protected:
+    protected:
     void SetUp() override {
         static int setup_counter = 0;
         if (setup_counter++ > 0) {
@@ -174,12 +174,12 @@ protected:
         bcvfs.set_cache_size(256LL * 1024 * 1024)
             .set_max_requests(4)
             .set_http_timeout(std::chrono::seconds(15));
-        bcvfs.set_auth_callback(
-            [](std::string_view, std::string_view, std::string_view,
-               std::string& token) -> bool {
-                token = kAzuriteKey;
-                return true;
-            });
+        bcvfs.set_auth_callback([](std::string_view, std::string_view,
+                                   std::string_view,
+                                   std::string& token) -> bool {
+            token = kAzuriteKey;
+            return true;
+        });
         return bcvfs;
     }
 
@@ -187,7 +187,7 @@ protected:
         bcvfs.attach(kStorage, kAzuriteAccount, container_name_, alias);
     }
 
-protected:
+    protected:
     std::string container_name_;
     std::string cache_dir_;
 };
@@ -263,12 +263,12 @@ TEST_F(BcvfsIntegrationTest, TwoInstancesSameCache) {
     std::filesystem::create_directories(cache2);
     {
         Bcvfs bcvfs2(cache2, "bcvfs-b");
-        bcvfs2.set_auth_callback(
-            [](std::string_view, std::string_view, std::string_view,
-               std::string& token) -> bool {
-                token = kAzuriteKey;
-                return true;
-            });
+        bcvfs2.set_auth_callback([](std::string_view, std::string_view,
+                                    std::string_view,
+                                    std::string& token) -> bool {
+            token = kAzuriteKey;
+            return true;
+        });
         // Re-attach same container under different alias
         EXPECT_NO_THROW(
             bcvfs2.attach(kStorage, kAzuriteAccount, container_name_, "test2"));
@@ -313,7 +313,7 @@ TEST_F(BcvfsIntegrationTest, ConfigurationChain) {
         .set_http_timeout(std::chrono::seconds(30));
 
     bcvfs.set_auth_callback([](std::string_view, std::string_view,
-                                 std::string_view, std::string& token) -> bool {
+                               std::string_view, std::string& token) -> bool {
         token = kAzuriteKey;
         return true;
     });
@@ -347,7 +347,8 @@ TEST_F(BcvfsIntegrationTest, MoveSemantics) {
     EXPECT_TRUE(bcvfs2);
     // Intentionally inspect the moved-from object: Bcvfs guarantees a valid,
     // empty state after move, which is exactly what this test verifies.
-    EXPECT_FALSE(bcvfs1); // NOLINT(bugprone-use-after-move,hicpp-invalid-access-moved)
+    EXPECT_FALSE(
+        bcvfs1); // NOLINT(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
 // ============================================================================

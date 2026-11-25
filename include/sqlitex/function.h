@@ -47,9 +47,61 @@ class SQLITEX_EXPORT FunctionContext {
     /// Set the result to an error message (SQLITE_ERROR).
     void set_error(const char* msg);
 
+    /// Set the result to a specific SQLite error code
+    /// (sqlite3_result_error_code).
+    void set_error_code(int code) noexcept;
+
+    /// Report out-of-memory error (sqlite3_result_error_nomem).
+    void set_error_nomem() noexcept;
+
+    /// Report string/blob too big error (sqlite3_result_error_toobig).
+    void set_error_toobig() noexcept;
+
+    /// Set the result to a zero-filled BLOB (sqlite3_result_zeroblob / 64).
+    void set_result_zeroblob(int size) noexcept;
+    void set_result_zeroblob64(uint64_t size);
+
+    /// Set the result to a static/long-lived text or blob without copying
+    /// (SQLITE_STATIC). Caller guarantees lifetime exceeds SQLite's use.
+    void set_result_static(std::string_view val) noexcept;
+    void set_result_static(const void* blob, int size) noexcept;
+
+    /// Set a 64-bit sized BLOB or text result with optional custom destructor.
+    /// If destructor is nullptr, SQLite makes a transient copy.
+    void set_result_blob64(const void* blob, uint64_t size,
+                           void (*destructor)(void*) = nullptr);
+    void set_result_text64(const char* text, uint64_t size,
+                           unsigned char encoding = SQLITE_UTF8,
+                           void (*destructor)(void*) = nullptr);
+
+    /// Set an opaque pointer result (sqlite3_result_pointer).
+    /// `type_name` must be a static string literal.
+    void set_result_pointer(void* ptr, const char* type_name,
+                            void (*destructor)(void*) = nullptr) noexcept;
+
+    /// Set the result to a copy of an existing sqlite3_value*
+    /// (sqlite3_result_value).
+    void set_result_value(const ValueRef& val) noexcept;
+    void set_result_value(const ProtectedValue& val) noexcept;
+
     /// Report that the function result is a sub-type.
     /// https://sqlite.org/c3ref/result_subtype.html
     void set_subtype(unsigned int subtype);
+
+    /// Retrieve cached auxiliary metadata for argument `arg_index`
+    /// (sqlite3_get_auxdata).
+    void* get_auxdata(int arg_index) const noexcept;
+
+    /// Cache auxiliary metadata for argument `arg_index` (sqlite3_set_auxdata).
+    void set_auxdata(int arg_index, void* data,
+                     void (*destructor)(void*) = nullptr) noexcept;
+
+    /// Return the owning sqlite3* database handle (sqlite3_context_db_handle).
+    sqlite3* db_handle() const noexcept;
+
+    /// Inside a virtual table xColumn, returns true if the column value will
+    /// not change during an UPDATE (sqlite3_vtab_nochange).
+    bool vtab_nochange() const noexcept;
 
     /// Raw access to the underlying sqlite3_context*.
     sqlite3_context* handle() noexcept {
@@ -68,9 +120,14 @@ class SQLITEX_EXPORT FunctionContext {
 // ============================================================================
 
 /// Callback type for scalar (non-aggregate) functions.
-/// Receives the result context and a span of argument values.
+/// Receives the result context and a vector of owned argument values.
 using ScalarFunction =
     std::function<void(FunctionContext& ctx, const std::vector<Value>& args)>;
+
+/// Callback type for raw scalar functions receiving non-owning ValueRef
+/// arguments (enables subtype, pointer-passing, nochange, etc.).
+using RawScalarFunction = std::function<void(
+    FunctionContext& ctx, const std::vector<ValueRef>& args)>;
 
 // ============================================================================
 // AggregateFunction — user-defined aggregate (base class)

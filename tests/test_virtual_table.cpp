@@ -156,15 +156,15 @@ class RwVTab : public VirtualTable {
     // Read-write support
     //
     // SQLite xUpdate argument convention (observed on SQLite 3.45+):
-     //   argc = N + 2  where N = number of declared columns
-     //   DELETE: argc==1, argv[0]=rowid
-     //   INSERT: argv[0]=NULL (new rowid placeholder),
-     //           argv[1]=NULL (old rowid, NULL for INSERT),
-     //           argv[2..N+1]=column values
-     //   UPDATE: argv[0]=old rowid,
-     //           argv[1]=new rowid (same as old unless rowid changes),
-     //           argv[2..N+1]=column values
-     //
+    //   argc = N + 2  where N = number of declared columns
+    //   DELETE: argc==1, argv[0]=rowid
+    //   INSERT: argv[0]=NULL (new rowid placeholder),
+    //           argv[1]=NULL (old rowid, NULL for INSERT),
+    //           argv[2..N+1]=column values
+    //   UPDATE: argv[0]=old rowid,
+    //           argv[1]=new rowid (same as old unless rowid changes),
+    //           argv[2..N+1]=column values
+    //
     int update(int argc, const std::vector<Value>& argv,
                int64_t* p_rowid) override {
         // DELETE

@@ -99,6 +99,9 @@ class SQLITEX_EXPORT ChangesetIterator {
     sqlite3_changeset_iter* handle() noexcept {
         return iter_;
     }
+    sqlite3_changeset_iter* handle() const noexcept {
+        return iter_;
+    }
 
     /// Release ownership of the underlying iterator.
     /// Used internally for borrowed iterators in conflict callbacks.
@@ -115,8 +118,8 @@ class SQLITEX_EXPORT ChangesetIterator {
     /// callback. The callback is invoked lazily as the iterator advances.
     /// @param input  Input callback providing changeset data chunks
     /// @param flags  Pass SQLITE_CHANGESETSTART_INVERT to invert on the fly
-    [[nodiscard]] static ChangesetIterator from_stream(
-        StreamInputFunc input, int flags = 0);
+    [[nodiscard]] static ChangesetIterator from_stream(StreamInputFunc input,
+                                                       int flags = 0);
 
     private:
     friend class Changeset;

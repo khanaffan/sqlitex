@@ -188,8 +188,8 @@ void Session::changeset_stream(StreamOutputFunc output) {
 void Session::patchset_stream(StreamOutputFunc output) {
     void* ctx = static_cast<void*>(&output);
     detail::AuthSink sink(db_->handle(), true);
-    int const rc = sqlite3session_patchset_strm(
-        session_, detail::stream_output_shim, ctx);
+    int const rc =
+        sqlite3session_patchset_strm(session_, detail::stream_output_shim, ctx);
     sink.check(rc);
     throw_on_error(rc, db_->handle());
 }
@@ -214,9 +214,32 @@ int64_t Session::memory_used() const noexcept {
     return sqlite3session_memory_used(session_);
 }
 
+int64_t Session::changeset_size() const noexcept {
+    return sqlite3session_changeset_size(session_);
+}
+
 void Session::set_object_config(int op, void* arg) {
     throw_on_error(sqlite3session_object_config(session_, op, arg),
                    db_->handle());
+}
+
+void Session::config(int op, void* arg) {
+    throw_on_error(sqlite3session_config(op, arg),
+                   "sqlite3session_config failed");
+}
+
+int Session::set_stream_chunk_size(int bytes) {
+    int sz = bytes;
+    throw_on_error(sqlite3session_config(SQLITE_SESSION_CONFIG_STRMSIZE, &sz),
+                   "sqlite3session_config(STRMSIZE) failed");
+    return sz;
+}
+
+int Session::stream_chunk_size() {
+    int sz = 0;
+    throw_on_error(sqlite3session_config(SQLITE_SESSION_CONFIG_STRMSIZE, &sz),
+                   "sqlite3session_config(STRMSIZE) failed");
+    return sz;
 }
 
 } // namespace sqlitex

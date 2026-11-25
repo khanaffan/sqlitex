@@ -16,7 +16,11 @@ int main() {
     try {
         // --- 1. Create the Block Cache VFS ---
         std::cout << "Creating bcvfs...\n";
-        sqlitex::Bcvfs bcvfs((std::filesystem::temp_directory_path() / "sqlite-block-cache").string().c_str(), "bcvfs");
+        sqlitex::Bcvfs bcvfs(
+            (std::filesystem::temp_directory_path() / "sqlite-block-cache")
+                .string()
+                .c_str(),
+            "bcvfs");
 
         // --- 2. Configure ---
         bcvfs

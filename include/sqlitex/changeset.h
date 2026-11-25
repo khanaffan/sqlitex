@@ -7,9 +7,11 @@
 #include "sqlitex/detail/session_api.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <string_view>
+#include <vector>
 
 #ifdef SQLITEX_HAS_SESSION
 
@@ -47,6 +49,7 @@ enum class ApplyFlag : int {
     Invert = SQLITE_CHANGESETAPPLY_INVERT,
     IgnoreNoop = SQLITE_CHANGESETAPPLY_IGNORENOOP,
     FkNoAction = SQLITE_CHANGESETAPPLY_FKNOACTION,
+    NoUpdateLoop = SQLITE_CHANGESETAPPLY_NOUPDATELOOP,
 };
 
 using ApplyFlags = int; // bitmask of ApplyFlag
@@ -118,15 +121,15 @@ class SQLITEX_EXPORT Changeset {
         Database& db,
         std::function<ChangesetAction(ConflictType, const ChangesetIterator&)>
             conflict_handler,
-        ApplyFlags flags = 0) const;
+        ApplyFlags flags = 0, std::vector<uint8_t>* rebase_out = nullptr) const;
 
-    /// Apply with per-change filter (v3 API).
+    /// Apply with per-change filter (v3 API) and optional rebase output.
     void apply_v3(
         Database& db,
         std::function<ChangesetAction(ConflictType, const ChangesetIterator&)>
             conflict_handler,
         std::function<bool(const ChangesetIterator&)> per_change_filter = {},
-        ApplyFlags flags = 0) const;
+        ApplyFlags flags = 0, std::vector<uint8_t>* rebase_out = nullptr) const;
 
     // === Streaming Apply ===
 
@@ -136,34 +139,37 @@ class SQLITEX_EXPORT Changeset {
     /// @param conflict_handler Resolves conflicts
     /// @param table_filter     Optional per-table filter
     static void apply_stream(
-        Database& db,
-        StreamInputFunc input,
+        Database& db, StreamInputFunc input,
         std::function<ChangesetAction(ConflictType, const ChangesetIterator&)>
             conflict_handler,
         std::function<bool(std::string_view)> table_filter = {});
 
-    /// Stream-apply with additional flags.
+    /// Stream-apply with additional flags and optional rebase output.
     static void apply_v2_stream(
-        Database& db,
-        StreamInputFunc input,
+        Database& db, StreamInputFunc input,
         std::function<ChangesetAction(ConflictType, const ChangesetIterator&)>
             conflict_handler,
-        ApplyFlags flags = 0);
+        ApplyFlags flags = 0, std::vector<uint8_t>* rebase_out = nullptr);
+
+    /// Stream-apply with per-change filter (v3 streaming API) and optional
+    /// rebase output.
+    static void apply_v3_stream(
+        Database& db, StreamInputFunc input,
+        std::function<ChangesetAction(ConflictType, const ChangesetIterator&)>
+            conflict_handler,
+        std::function<bool(const ChangesetIterator&)> per_change_filter = {},
+        ApplyFlags flags = 0, std::vector<uint8_t>* rebase_out = nullptr);
 
     // === Streaming Operations ===
 
     /// Stream-concatenate two changesets from input callbacks, producing
     /// output via an output callback.
-    static void concat_stream(
-        StreamInputFunc input_a,
-        StreamInputFunc input_b,
-        StreamOutputFunc output);
+    static void concat_stream(StreamInputFunc input_a, StreamInputFunc input_b,
+                              StreamOutputFunc output);
 
     /// Stream-invert a changeset from an input callback, producing output
     /// via an output callback.
-    static void invert_stream(
-        StreamInputFunc input,
-        StreamOutputFunc output);
+    static void invert_stream(StreamInputFunc input, StreamOutputFunc output);
 
     private:
     struct Deleter {
@@ -224,8 +230,7 @@ class SQLITEX_EXPORT Patchset {
 
     /// Stream-apply a patchset from an input callback.
     static void apply_stream(
-        Database& db,
-        StreamInputFunc input,
+        Database& db, StreamInputFunc input,
         std::function<ChangesetAction(ConflictType, const ChangesetIterator&)>
             conflict_handler,
         std::function<bool(std::string_view)> table_filter = {});

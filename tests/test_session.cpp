@@ -72,7 +72,8 @@ TEST_F(SessionTest, EnableReturnsPreviousState) {
     Session session(db_, "main");
     session.attach_all();
 
-    // Sessions are enabled by default; disabling returns the prior (enabled) state.
+    // Sessions are enabled by default; disabling returns the prior (enabled)
+    // state.
     EXPECT_TRUE(session.enable(false));
     db_.execute("INSERT INTO items VALUES (99, 'ignored', 1)");
     EXPECT_TRUE(session.is_empty());
@@ -355,7 +356,8 @@ TEST_F(SessionTest, ChangesetStreamCallbackError) {
 // ============================================================================
 
 TEST_F(SessionTest, DiffAgainstAttachedDatabase) {
-    // Create a reference DB in a temp file with the same schema + different data
+    // Create a reference DB in a temp file with the same schema + different
+    // data
     test::TempFile ref_file;
     {
         Database ref(ref_file.path());

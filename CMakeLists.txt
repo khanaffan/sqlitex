@@ -67,7 +67,7 @@ endif()
 if(NOT EXISTS "${CMAKE_SOURCE_DIR}/third_party/sqlite3/sqlite3.c")
     message(STATUS "SQLite3 amalgamation not found. Downloading...")
     file(DOWNLOAD
-        "https://www.sqlite.org/2026/sqlite-amalgamation-3530100.zip"
+        "https://www.sqlite.org/2026/sqlite-amalgamation-3540100.zip"
         "${CMAKE_BINARY_DIR}/sqlite-amalgamation.zip"
         STATUS DOWNLOAD_STATUS
     )
@@ -103,29 +103,46 @@ add_subdirectory(third_party/sqlite3)
 # ============================================================================
 set(SQLITEX_SOURCES
     src/error.cpp
+    src/sqlite.cpp
     src/database.cpp
     src/statement.cpp
     src/function.cpp
+    src/backup.cpp
+    src/snapshot.cpp
     src/blobio.cpp
     src/policy.cpp
     src/policy_internal.h
     src/virtual_table.cpp
+    src/fts5.cpp
+    src/rtree.cpp
     src/bcvfs.cpp
+    src/bcv_util.cpp
+    src/bcv_module.cpp
 )
 
 set(SQLITEX_HEADERS
     include/sqlitex/sqlitex.h
     include/sqlitex/error.h
+    include/sqlitex/sqlite.h
     include/sqlitex/database.h
     include/sqlitex/statement.h
     include/sqlitex/function.h
+    include/sqlitex/backup.h
+    include/sqlitex/snapshot.h
     include/sqlitex/virtual_table.h
+    include/sqlitex/fts5.h
+    include/sqlitex/rtree.h
     include/sqlitex/blobio.h
     include/sqlitex/policy.h
     include/sqlitex/value.h
+    include/sqlitex/bcvfs.h
+    include/sqlitex/prefetch.h
+    include/sqlitex/bcv_util.h
+    include/sqlitex/bcv_module.h
     include/sqlitex/detail/blob.h
     include/sqlitex/detail/callbacks.h
     include/sqlitex/detail/session_api.h
+    include/sqlitex/detail/sqlite3_fwd.h
 )
 
 # Session extension support (optional)
@@ -135,12 +152,14 @@ if(SQLITEX_SESSION)
         src/changeset.cpp
         src/changeset_iterator.cpp
         src/changegroup.cpp
+        src/rebaser.cpp
     )
     list(APPEND SQLITEX_HEADERS
         include/sqlitex/session.h
         include/sqlitex/changeset.h
         include/sqlitex/changeset_iterator.h
         include/sqlitex/changegroup.h
+        include/sqlitex/rebaser.h
     )
     set(SQLITEX_HAS_SESSION TRUE)
 endif()
@@ -174,10 +193,6 @@ if(SQLITEX_BCVFS)
             ${BCVFS_INCLUDE_DIR}/simplexml.c
             ${BCVFS_INCLUDE_DIR}/bcvencrypt.c
             ${BCVFS_INCLUDE_DIR}/bcvlog.c
-        )
-        list(APPEND SQLITEX_HEADERS
-            include/sqlitex/bcvfs.h
-            include/sqlitex/prefetch.h
         )
         # bcVFS needs curl and openssl
         find_package(CURL REQUIRED)
@@ -214,6 +229,12 @@ target_include_directories(sqlitex
 )
 
 target_link_libraries(sqlitex PUBLIC sqlite3_amalgamation)
+
+# Expose guarded SQLite3 declarations privately when building sqlitex sources
+target_compile_definitions(sqlitex PRIVATE
+    SQLITE_ENABLE_NORMALIZE
+    SQLITE_ENABLE_PREUPDATE_HOOK
+)
 
 # Internal bcvfs include if available
 if(SQLITEX_BCVFS)

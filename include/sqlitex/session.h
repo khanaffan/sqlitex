@@ -52,11 +52,13 @@ class SQLITEX_EXPORT Session {
     // === Control ===
 
     /// Enable or disable change tracking.
-    /// @return Previous enable state (true = was enabled, false = was disabled).
+    /// @return Previous enable state (true = was enabled, false = was
+    /// disabled).
     bool enable(bool enabled = true);
 
     /// Enable or disable recording of indirect changes (trigger-fired).
-    /// @return Previous indirect state (true = was enabled, false = was disabled).
+    /// @return Previous indirect state (true = was enabled, false = was
+    /// disabled).
     bool set_indirect(bool indirect = true);
 
     // === Table Attachment ===
@@ -114,11 +116,26 @@ class SQLITEX_EXPORT Session {
     bool is_empty() const noexcept;
     int64_t memory_used() const noexcept;
 
+    /// Upper bound on changeset size in bytes (requires
+    /// SQLITE_SESSION_OBJCONFIG_SIZE enabled before recording changes).
+    int64_t changeset_size() const noexcept;
+
     // === Object Config ===
 
     /// Configure session behavior.
     /// op: SQLITE_SESSION_OBJCONFIG_SIZE or SQLITE_SESSION_OBJCONFIG_ROWID
     void set_object_config(int op, void* arg);
+
+    // === Global Session Config ===
+
+    /// Raw wrapper for sqlite3session_config().
+    static void config(int op, void* arg);
+
+    /// Set the global streaming chunk size (bytes) and return the active value.
+    static int set_stream_chunk_size(int bytes);
+
+    /// Query the current global streaming chunk size (bytes).
+    static int stream_chunk_size();
 
     private:
     sqlite3_session* session_ = nullptr;

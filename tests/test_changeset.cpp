@@ -459,11 +459,10 @@ TEST_F(ChangesetTest, ApplyStream) {
     // Wrap changeset data as a stream input
     StreamInputFunc input = make_stream_input(cs.data(), cs.size());
 
-    Changeset::apply_stream(
-        target, std::move(input),
-        [](ConflictType, const ChangesetIterator&) {
-            return ChangesetAction::Abort;
-        });
+    Changeset::apply_stream(target, std::move(input),
+                            [](ConflictType, const ChangesetIterator&) {
+                                return ChangesetAction::Abort;
+                            });
 
     auto count = target.query_value<int64_t>("SELECT COUNT(*) FROM items");
     EXPECT_EQ(*count, 1);
@@ -606,12 +605,13 @@ TEST_F(ChangesetTest, ApplyV2IgnoresNoop) {
     // Target already has quantity=10; applying quantity=42 is not a no-op here,
     // but we use IgnoreNoop so that if the value happened to match it would be
     // silently skipped. There is no conflict because the target row exists.
-    cs.apply_v2(target,
-                [&](ConflictType, const ChangesetIterator&) -> ChangesetAction {
-                    conflict_count++;
-                    return ChangesetAction::Omit;
-                },
-                static_cast<int>(ApplyFlag::IgnoreNoop));
+    cs.apply_v2(
+        target,
+        [&](ConflictType, const ChangesetIterator&) -> ChangesetAction {
+            conflict_count++;
+            return ChangesetAction::Omit;
+        },
+        static_cast<int>(ApplyFlag::IgnoreNoop));
 
     EXPECT_EQ(conflict_count, 0);
     // The change was applied — quantity should now be 42.
@@ -778,11 +778,12 @@ TEST_F(ChangesetTest, ApplyV2WithNoSavepoint) {
 
     Changeset cs = session.changeset();
 
-    cs.apply_v2(target,
-                [](ConflictType, const ChangesetIterator&) -> ChangesetAction {
-                    return ChangesetAction::Abort;
-                },
-                static_cast<int>(ApplyFlag::NoSavepoint));
+    cs.apply_v2(
+        target,
+        [](ConflictType, const ChangesetIterator&) -> ChangesetAction {
+            return ChangesetAction::Abort;
+        },
+        static_cast<int>(ApplyFlag::NoSavepoint));
 
     auto count = target.query_value<int64_t>("SELECT COUNT(*) FROM items");
     EXPECT_EQ(*count, 2);
@@ -809,10 +810,10 @@ TEST_F(ChangesetTest, ApplyV2InvertViaInvertMethod) {
 
     // Invert first, then apply — INSERT becomes DELETE
     Changeset inverted = cs.invert();
-    inverted.apply(target,
-                   [](ConflictType, const ChangesetIterator&) -> ChangesetAction {
-                       return ChangesetAction::Omit;
-                   });
+    inverted.apply(
+        target, [](ConflictType, const ChangesetIterator&) -> ChangesetAction {
+            return ChangesetAction::Omit;
+        });
 
     // Target still has 2 rows (the inverted INSERT tries to DELETE id=3
     // which doesn't exist in target, so it's omitted)
