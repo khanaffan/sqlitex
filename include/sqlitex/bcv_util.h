@@ -2,6 +2,7 @@
 
 #include "sqlitex_export.h"
 
+#include "sqlitex/concepts.h"
 #include "sqlitex/error.h"
 
 #include <chrono>
@@ -69,7 +70,7 @@ class SQLITEX_EXPORT BcvClient {
 #endif
     }
 
-    sqlite3_bcv* handle() noexcept {
+    [[nodiscard]] sqlite3_bcv* handle() noexcept {
 #ifdef SQLITEX_HAS_BCVFS
         return handle_;
 #else
@@ -101,8 +102,18 @@ class SQLITEX_EXPORT BcvClient {
     /// Upload a local SQLite database file to cloud storage.
     void upload(std::string_view local_path, std::string_view remote_name);
 
+    template <FilesystemPath Path>
+    void upload(const Path& local_path, std::string_view remote_name) {
+        upload(detail::path_to_utf8(local_path), remote_name);
+    }
+
     /// Download a cloud database to a local file path.
     void download(std::string_view remote_name, std::string_view local_path);
+
+    template <FilesystemPath Path>
+    void download(std::string_view remote_name, const Path& local_path) {
+        download(remote_name, detail::path_to_utf8(local_path));
+    }
 
     /// Copy a database within the cloud storage container.
     void copy(std::string_view from_name, std::string_view to_name);
@@ -110,18 +121,18 @@ class SQLITEX_EXPORT BcvClient {
     /// Delete a single database from cloud storage.
     void remove(std::string_view remote_name);
 
-    /// Delete unused / orphaned blocks older than `age_seconds` (<= 0 deletes
+    /// Delete unused / orphaned blocks older than `min_age` (<= 0s deletes
     /// all unused blocks).
-    void cleanup(int age_seconds = 0);
+    void cleanup(std::chrono::seconds min_age = std::chrono::seconds{0});
 
     // === Diagnostics ===
 
     /// Error code from the most recent operation (SQLite code < 256 or HTTP
     /// status >= 400).
-    int errcode() const noexcept;
+    [[nodiscard]] int errcode() const noexcept;
 
     /// Error message from the most recent operation (empty if none).
-    std::string errmsg() const;
+    [[nodiscard]] std::string errmsg() const;
 
     private:
 #ifdef SQLITEX_HAS_BCVFS

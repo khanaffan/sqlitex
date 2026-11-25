@@ -210,11 +210,11 @@ TEST_F(SessionTest, CumulativeChangeset) {
 
     db_.execute("INSERT INTO items VALUES (3, 'A', 1)");
     Changeset cs1 = session.changeset();
-    int size1 = cs1.size();
+    auto size1 = cs1.size();
 
     db_.execute("INSERT INTO items VALUES (4, 'B', 2)");
     Changeset cs2 = session.changeset();
-    int size2 = cs2.size();
+    auto size2 = cs2.size();
 
     // Second changeset should be larger (includes both inserts)
     EXPECT_GT(size2, size1);
@@ -294,10 +294,9 @@ TEST_F(SessionTest, ChangesetStreamToVector) {
     session.attach_all();
     db_.execute("INSERT INTO items VALUES (3, 'StreamTest', 50)");
 
-    std::vector<uint8_t> collected;
-    StreamOutputFunc output = [&](const void* data, int size) -> int {
-        auto* bytes = static_cast<const uint8_t*>(data);
-        collected.insert(collected.end(), bytes, bytes + size);
+    std::vector<std::byte> collected;
+    StreamOutputFunc output = [&](std::span<const std::byte> data) -> int {
+        collected.insert(collected.end(), data.begin(), data.end());
         return 0;
     };
 
@@ -306,7 +305,7 @@ TEST_F(SessionTest, ChangesetStreamToVector) {
 
     // Compare with in-memory version
     Changeset cs = session.changeset();
-    ASSERT_EQ(collected.size(), static_cast<std::size_t>(cs.size()));
+    ASSERT_EQ(collected.size(), cs.size());
     EXPECT_EQ(std::memcmp(collected.data(), cs.data(), cs.size()), 0);
 }
 
@@ -316,10 +315,9 @@ TEST_F(SessionTest, PatchsetStreamToVector) {
     session.attach_all();
     db_.execute("INSERT INTO items VALUES (3, 'PatchStream', 50)");
 
-    std::vector<uint8_t> collected;
-    StreamOutputFunc output = [&](const void* data, int size) -> int {
-        auto* bytes = static_cast<const uint8_t*>(data);
-        collected.insert(collected.end(), bytes, bytes + size);
+    std::vector<std::byte> collected;
+    StreamOutputFunc output = [&](std::span<const std::byte> data) -> int {
+        collected.insert(collected.end(), data.begin(), data.end());
         return 0;
     };
 
@@ -344,7 +342,7 @@ TEST_F(SessionTest, ChangesetStreamCallbackError) {
     session.attach_all();
     db_.execute("INSERT INTO items VALUES (3, 'ErrTest', 50)");
 
-    StreamOutputFunc error_output = [](const void*, int) -> int {
+    StreamOutputFunc error_output = [](std::span<const std::byte>) -> int {
         return 1; // Signal error
     };
 
@@ -393,7 +391,7 @@ TEST_F(SessionTest, DiffAgainstAttachedDatabase) {
     EXPECT_GT(cs.size(), 0);
 
     // Iterate the diff: should find the quantity difference for id=1
-    auto iter = cs.begin();
+    auto iter = cs.changes();
     bool found_qty_change = false;
     bool found_extra_row = false;
     while (iter.next()) {
@@ -445,7 +443,7 @@ TEST_F(SessionTest, DiffFreshSessionContainsOnlyDiff) {
 
     // Apply this diff back to the reference DB to verify it would
     // reconcile the two databases
-    auto iter = cs.begin();
+    auto iter = cs.changes();
     int change_count = 0;
     while (iter.next()) {
         change_count++;

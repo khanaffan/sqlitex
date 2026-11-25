@@ -604,10 +604,12 @@ ScopedPolicy& ScopedPolicy::read_only() {
     return *this;
 }
 
-ScopedPolicy& ScopedPolicy::allow_only(std::vector<AuthorizerAction> actions) {
-    add_builtin([actions = std::move(actions)](const AuthorizerRequest& r) {
-        if (is_ending(r) || std::find(actions.begin(), actions.end(),
-                                      r.action) != actions.end()) {
+ScopedPolicy& ScopedPolicy::allow_only(
+    std::span<const AuthorizerAction> actions) {
+    std::vector<AuthorizerAction> allowed(actions.begin(), actions.end());
+    add_builtin([allowed = std::move(allowed)](const AuthorizerRequest& r) {
+        if (is_ending(r) || std::find(allowed.begin(), allowed.end(),
+                                      r.action) != allowed.end()) {
             return Result::Allow;
         }
         return Result::Deny;

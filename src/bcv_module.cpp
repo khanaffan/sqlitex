@@ -6,6 +6,7 @@
 #include <string>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 #ifdef SQLITEX_HAS_BCVFS
 
@@ -14,6 +15,16 @@
 namespace sqlitex {
 
 namespace {
+
+static_assert(static_cast<int>(BcvHttpMethod::Get) == SQLITE_BCV_METHOD_GET);
+static_assert(static_cast<int>(BcvHttpMethod::Put) == SQLITE_BCV_METHOD_PUT);
+static_assert(static_cast<int>(BcvHttpMethod::Delete) ==
+              SQLITE_BCV_METHOD_DELETE);
+static_assert(static_cast<int>(BcvHttpMethod::Head) == SQLITE_BCV_METHOD_HEAD);
+static_assert(static_cast<int>(BcvFetchCondition::Md5) ==
+              BCV_MODULE_CONDITION_MD5);
+static_assert(static_cast<int>(BcvFetchCondition::ETag) ==
+              BCV_MODULE_CONDITION_ETAG);
 
 struct ContainerHolder {
     std::unique_ptr<BcvContainer> impl;
@@ -107,7 +118,13 @@ void bcv_fetch_shim(sqlite3_bcv_container* p, sqlite3_bcv_job* job,
     auto* holder = reinterpret_cast<ContainerHolder*>(p);
     try {
         BcvJob j(job);
-        holder->impl->fetch(j, zFile ? zFile : "", flags, zCond, nCond);
+        std::span<const std::byte> cond;
+        if (zCond != nullptr && nCond > 0) {
+            cond = {static_cast<const std::byte*>(zCond),
+                    static_cast<std::size_t>(nCond)};
+        }
+        holder->impl->fetch(j, zFile ? zFile : "",
+                            BcvFetchConditions::from_raw(flags), cond);
     } catch (const Error& e) {
         sqlite3_bcv_job_error(job, static_cast<int>(e.code()), e.what());
     } catch (const std::exception& e) {
@@ -123,9 +140,12 @@ void bcv_put_shim(sqlite3_bcv_container* p, sqlite3_bcv_job* job,
     auto* holder = reinterpret_cast<ContainerHolder*>(p);
     try {
         BcvJob j(job);
-        holder->impl->put(j, zFile ? zFile : "",
-                          reinterpret_cast<const uint8_t*>(zData), nData,
-                          zETag ? zETag : "");
+        std::span<const std::byte> data;
+        if (zData != nullptr && nData > 0) {
+            data = {reinterpret_cast<const std::byte*>(zData),
+                    static_cast<std::size_t>(nData)};
+        }
+        holder->impl->put(j, zFile ? zFile : "", data, zETag ? zETag : "");
     } catch (const Error& e) {
         sqlite3_bcv_job_error(job, static_cast<int>(e.code()), e.what());
     } catch (const std::exception& e) {
@@ -225,14 +245,16 @@ void BcvRequest::set_header(std::string_view header) {
     sqlite3_bcv_request_set_header(req_, s.c_str());
 }
 
-void BcvRequest::set_body(const uint8_t* data, int size) {
-    sqlite3_bcv_request_set_body(
-        req_, reinterpret_cast<const unsigned char*>(data), size);
+void BcvRequest::set_body(std::span<const std::byte> data) {
+    static const unsigned char kEmpty = 0;
+    const unsigned char* ptr =
+        !data.empty() ? reinterpret_cast<const unsigned char*>(data.data())
+                      : &kEmpty;
+    sqlite3_bcv_request_set_body(req_, ptr, static_cast<int>(data.size()));
 }
 
 void BcvRequest::set_body(std::string_view data) {
-    set_body(reinterpret_cast<const uint8_t*>(data.empty() ? "" : data.data()),
-             static_cast<int>(data.size()));
+    set_body(std::as_bytes(std::span(data.data(), data.size())));
 }
 
 int BcvRequest::status(std::string* status_msg) const {
@@ -264,10 +286,13 @@ std::string_view BcvRequest::raw_headers() const {
     return {reinterpret_cast<const char*>(p), static_cast<std::size_t>(n)};
 }
 
-std::pair<const uint8_t*, int> BcvRequest::body() const {
+std::span<const std::byte> BcvRequest::body() const {
     int n = 0;
     const unsigned char* p = sqlite3_bcv_request_body(req_, &n);
-    return {reinterpret_cast<const uint8_t*>(p), n};
+    if (p == nullptr || n <= 0) {
+        return {};
+    }
+    return {reinterpret_cast<const std::byte*>(p), static_cast<std::size_t>(n)};
 }
 
 // ============================================================================
@@ -285,15 +310,16 @@ BcvRequest BcvJob::create_request(ReplyCallback on_reply) {
     return BcvRequest(req);
 }
 
-void BcvJob::set_result(const uint8_t* data, int size) {
-    sqlite3_bcv_job_result(job_, reinterpret_cast<const unsigned char*>(data),
-                           size);
+void BcvJob::set_result(std::span<const std::byte> data) {
+    static const unsigned char kEmpty = 0;
+    const unsigned char* ptr =
+        !data.empty() ? reinterpret_cast<const unsigned char*>(data.data())
+                      : &kEmpty;
+    sqlite3_bcv_job_result(job_, ptr, static_cast<int>(data.size()));
 }
 
 void BcvJob::set_result(std::string_view data) {
-    set_result(
-        reinterpret_cast<const uint8_t*>(data.empty() ? "" : data.data()),
-        static_cast<int>(data.size()));
+    set_result(std::as_bytes(std::span(data.data(), data.size())));
 }
 
 void BcvJob::add_list_entry(std::string_view entry) {
@@ -302,15 +328,16 @@ void BcvJob::add_list_entry(std::string_view entry) {
         job_, reinterpret_cast<const unsigned char*>(s.c_str()), -1);
 }
 
-void BcvJob::set_headers(const uint8_t* data, int size) {
-    sqlite3_bcv_job_hdrs(job_, reinterpret_cast<const unsigned char*>(data),
-                         size);
+void BcvJob::set_headers(std::span<const std::byte> data) {
+    static const unsigned char kEmpty = 0;
+    const unsigned char* ptr =
+        !data.empty() ? reinterpret_cast<const unsigned char*>(data.data())
+                      : &kEmpty;
+    sqlite3_bcv_job_hdrs(job_, ptr, static_cast<int>(data.size()));
 }
 
 void BcvJob::set_headers(std::string_view data) {
-    set_headers(
-        reinterpret_cast<const uint8_t*>(data.empty() ? "" : data.data()),
-        static_cast<int>(data.size()));
+    set_headers(std::as_bytes(std::span(data.data(), data.size())));
 }
 
 void BcvJob::set_etag(std::string_view etag) {
@@ -370,7 +397,7 @@ void BcvRequest::set_log(std::string_view /*unused*/) {
 }
 void BcvRequest::set_header(std::string_view /*unused*/) {
 }
-void BcvRequest::set_body(const uint8_t* /*unused*/, int /*unused*/) {
+void BcvRequest::set_body(std::span<const std::byte> /*unused*/) {
 }
 void BcvRequest::set_body(std::string_view /*unused*/) {
 }
@@ -384,20 +411,20 @@ std::optional<std::string_view> BcvRequest::header(
 std::string_view BcvRequest::raw_headers() const {
     return {};
 }
-std::pair<const uint8_t*, int> BcvRequest::body() const {
-    return {nullptr, 0};
+std::span<const std::byte> BcvRequest::body() const {
+    return {};
 }
 
 BcvRequest BcvJob::create_request(ReplyCallback /*unused*/) {
     throw Error(ErrorCode::Error, "bcvfs support not compiled in");
 }
-void BcvJob::set_result(const uint8_t* /*unused*/, int /*unused*/) {
+void BcvJob::set_result(std::span<const std::byte> /*unused*/) {
 }
 void BcvJob::set_result(std::string_view /*unused*/) {
 }
 void BcvJob::add_list_entry(std::string_view /*unused*/) {
 }
-void BcvJob::set_headers(const uint8_t* /*unused*/, int /*unused*/) {
+void BcvJob::set_headers(std::span<const std::byte> /*unused*/) {
 }
 void BcvJob::set_headers(std::string_view /*unused*/) {
 }

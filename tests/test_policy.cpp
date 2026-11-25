@@ -176,7 +176,7 @@ TEST_F(PolicyTest, RequestFieldsPreserveNullEmptySchemaAndSource) {
     std::vector<Seen> seen;
     ScopedPolicy policy(db_, recorder(seen));
 
-    db_.query("SELECT count(*) FROM users");
+    (void)db_.query("SELECT count(*) FROM users");
     bool count_read = false;
     for (const auto& s : seen) {
         if (s.action == Action::Read && s.arg1 == "users" && s.arg2 == "" &&
@@ -191,7 +191,7 @@ TEST_F(PolicyTest, RequestFieldsPreserveNullEmptySchemaAndSource) {
     EXPECT_TRUE(count_read);
 
     seen.clear();
-    db_.query("SELECT name FROM v_users");
+    (void)db_.query("SELECT name FROM v_users");
     bool via_view = false;
     for (const auto& s : seen) {
         if (s.action == Action::Read && s.arg1 == "users" && s.arg2 == "name" &&
@@ -215,7 +215,7 @@ TEST_F(PolicyTest, PreparedStatementIsReauthorizedOnEntryAdditionAndRestore) {
     {
         ScopedPolicy policy(db_);
         policy.deny_select();
-        EXPECT_THROW(stmt.step(), AuthError);
+        EXPECT_THROW((void)stmt.step(), AuthError);
     }
     // sqlite3_reset() reports the failed step; the statement is then usable.
     EXPECT_THROW(stmt.reset(), AuthError);
@@ -226,7 +226,7 @@ TEST_F(PolicyTest, PreparedStatementIsReauthorizedOnEntryAdditionAndRestore) {
     EXPECT_TRUE(stmt.step());
     stmt.reset();
     policy.deny_read();
-    EXPECT_THROW(stmt.step(), AuthError);
+    EXPECT_THROW((void)stmt.step(), AuthError);
 }
 
 TEST_F(PolicyTest, EveryActionCodeIsEmitted) {
@@ -388,15 +388,16 @@ TEST_F(PolicyTest, ReadOnlyAllowsSessionChangesetGeneration) {
 TEST_F(PolicyTest, AllowOnlyDeniesUnlistedAndIntersects) {
     ScopedPolicy policy(db_);
     policy.allow_only({Action::Select, Action::Read, Action::Insert});
-    EXPECT_NO_THROW(db_.query("SELECT name FROM users"));
+    EXPECT_NO_THROW((void)db_.query("SELECT name FROM users"));
     EXPECT_NO_THROW(db_.execute("INSERT INTO audit_log(msg) VALUES('x')"));
     EXPECT_THROW(db_.execute("DELETE FROM audit_log"), AuthError);
-    EXPECT_THROW(db_.query("SELECT abs(1)"), AuthError); // Function unlisted
+    EXPECT_THROW((void)db_.query("SELECT abs(1)"),
+                 AuthError); // Function unlisted
 
     policy.allow_only({Action::Select, Action::Read});
     EXPECT_THROW(db_.execute("INSERT INTO audit_log(msg) VALUES('y')"),
                  AuthError);
-    EXPECT_NO_THROW(db_.query("SELECT name FROM users"));
+    EXPECT_NO_THROW((void)db_.query("SELECT name FROM users"));
 }
 
 TEST_F(PolicyTest, DenyTableMatchingRules) {
@@ -407,15 +408,17 @@ TEST_F(PolicyTest, DenyTableMatchingRules) {
     {
         ScopedPolicy policy(db_);
         policy.deny_table("AUDIT_LOG", "main");
-        EXPECT_THROW(db_.query("SELECT msg FROM audit_log"), AuthError);
-        EXPECT_THROW(db_.query("SELECT msg FROM Main.Audit_Log"), AuthError);
-        EXPECT_THROW(db_.query("SELECT msg FROM v_audit"), AuthError);
+        EXPECT_THROW((void)db_.query("SELECT msg FROM audit_log"), AuthError);
+        EXPECT_THROW((void)db_.query("SELECT msg FROM Main.Audit_Log"),
+                     AuthError);
+        EXPECT_THROW((void)db_.query("SELECT msg FROM v_audit"), AuthError);
         EXPECT_THROW(db_.execute("INSERT INTO audit_log(msg) VALUES(1)"),
                      AuthError);
         // Unqualified count(*) reports no schema: fail closed.
-        EXPECT_THROW(db_.query("SELECT count(*) FROM audit_log"), AuthError);
-        EXPECT_NO_THROW(db_.query("SELECT x FROM aux.audit_log"));
-        EXPECT_NO_THROW(db_.query("SELECT name FROM users"));
+        EXPECT_THROW((void)db_.query("SELECT count(*) FROM audit_log"),
+                     AuthError);
+        EXPECT_NO_THROW((void)db_.query("SELECT x FROM aux.audit_log"));
+        EXPECT_NO_THROW((void)db_.query("SELECT name FROM users"));
         EXPECT_THROW(db_.execute("CREATE TEMP TRIGGER tt AFTER INSERT ON "
                                  "main.audit_log BEGIN SELECT 1; END"),
                      AuthError);
@@ -423,13 +426,14 @@ TEST_F(PolicyTest, DenyTableMatchingRules) {
     {
         ScopedPolicy policy(db_);
         policy.deny_table("v_audit");
-        EXPECT_THROW(db_.query("SELECT msg FROM v_audit"), AuthError);
-        EXPECT_NO_THROW(db_.query("SELECT msg FROM audit_log"));
+        EXPECT_THROW((void)db_.query("SELECT msg FROM v_audit"), AuthError);
+        EXPECT_NO_THROW((void)db_.query("SELECT msg FROM audit_log"));
     }
     {
         ScopedPolicy policy(db_);
         policy.deny_table("sqlite_schema");
-        EXPECT_THROW(db_.query("SELECT name FROM sqlite_master"), AuthError);
+        EXPECT_THROW((void)db_.query("SELECT name FROM sqlite_master"),
+                     AuthError);
         EXPECT_THROW(db_.execute("CREATE TABLE t(x)"), AuthError);
     }
 }
@@ -440,14 +444,14 @@ TEST_F(PolicyTest, DenyColumnBlocksReadUpdateAndAlter) {
     policy.deny_column("users", "password_hash")
         .deny_column("nn", "c")
         .deny_column("users", "id");
-    EXPECT_THROW(db_.query("SELECT password_hash FROM users"), AuthError);
+    EXPECT_THROW((void)db_.query("SELECT password_hash FROM users"), AuthError);
     EXPECT_THROW(db_.execute("UPDATE users SET password_hash='x'"), AuthError);
     EXPECT_THROW(db_.execute("ALTER TABLE users DROP COLUMN password_hash"),
                  AuthError);
     EXPECT_THROW(db_.execute("ALTER TABLE nn ALTER COLUMN c SET NOT NULL"),
                  AuthError);
-    EXPECT_THROW(db_.query("SELECT rowid FROM users"), AuthError);
-    EXPECT_NO_THROW(db_.query("SELECT name FROM users"));
+    EXPECT_THROW((void)db_.query("SELECT rowid FROM users"), AuthError);
+    EXPECT_NO_THROW((void)db_.query("SELECT name FROM users"));
 }
 
 TEST_F(PolicyTest, DenyFunctionThrowsAuthErrorAndSchemaLimit) {
@@ -460,7 +464,7 @@ TEST_F(PolicyTest, DenyFunctionThrowsAuthErrorAndSchemaLimit) {
         "INSERT INTO out VALUES(upper(new.msg)); END;");
     ScopedPolicy policy(db_);
     policy.deny_function("UPPER").deny_function("lower");
-    EXPECT_THROW(db_.query("SELECT upper('x')"), AuthError);
+    EXPECT_THROW((void)db_.query("SELECT upper('x')"), AuthError);
     EXPECT_THROW(db_.execute("INSERT INTO audit_log(msg) VALUES('m')"),
                  AuthError);
     // Documented limit: VIRTUAL generated-column expressions are not
@@ -473,10 +477,10 @@ TEST_F(PolicyTest, DenyFunctionThrowsAuthErrorAndSchemaLimit) {
 TEST_F(PolicyTest, DenyPragmaIncludingTableValuedFunction) {
     ScopedPolicy policy(db_);
     policy.deny_pragma("TABLE_INFO");
-    EXPECT_THROW(db_.query("PRAGMA table_info(users)"), AuthError);
-    EXPECT_THROW(db_.query("SELECT * FROM pragma_table_info('users')"),
+    EXPECT_THROW((void)db_.query("PRAGMA table_info(users)"), AuthError);
+    EXPECT_THROW((void)db_.query("SELECT * FROM pragma_table_info('users')"),
                  AuthError);
-    EXPECT_NO_THROW(db_.query("PRAGMA user_version"));
+    EXPECT_NO_THROW((void)db_.query("PRAGMA user_version"));
 }
 
 // ============================================================================
@@ -501,7 +505,7 @@ TEST_F(PolicyTest, IgnoreOutsideReadOnlyBecomesDeny) {
         policy.add([](const AuthorizerRequest& r) {
             return r.action == Action::Read ? Result::Ignore : Result::Allow;
         });
-        EXPECT_THROW(db_.query("SELECT ssn FROM users"), AuthError);
+        EXPECT_THROW((void)db_.query("SELECT ssn FROM users"), AuthError);
     }
     EXPECT_EQ(db_.query_value<std::string>("SELECT name FROM users WHERE id=1"),
               "alice");
@@ -571,10 +575,12 @@ TEST_F(PolicyTest, CallbackExceptionsAreRethrownFromEntryPoints) {
         EXPECT_THROW((void)db_.prepare("SELECT name FROM users"),
                      PolicyFailure);
         EXPECT_THROW(db_.execute("SELECT name FROM users"), PolicyFailure);
-        EXPECT_THROW(db_.exec("SELECT name FROM users",
-                              [](int, char**, char**) { return true; }),
-                     PolicyFailure);
-        EXPECT_THROW(stmt.step(), PolicyFailure); // reprepare inside step
+        EXPECT_THROW(
+            db_.exec("SELECT name FROM users",
+                     [](std::span<const std::optional<std::string_view>>,
+                        std::span<const std::string_view>) { return true; }),
+            PolicyFailure);
+        EXPECT_THROW((void)stmt.step(), PolicyFailure); // reprepare inside step
     }
     EXPECT_THROW(stmt.reset(), AuthError); // reports the failed step
     EXPECT_TRUE(stmt.step());
@@ -624,13 +630,13 @@ TEST_F(PolicyTest, RawHandleExceptionIsDroppedAsDeny) {
                                 &raw, nullptr);
     EXPECT_EQ(rc, SQLITE_AUTH);
     sqlite3_finalize(raw);
-    EXPECT_NO_THROW(db_.query("SELECT 1"));
+    EXPECT_NO_THROW((void)db_.query("SELECT 1"));
 }
 
 TEST_F(PolicyTest, NestedOperationInUserFunctionContainsItsFailure) {
     bool inner_failed = false;
     db_.create_function("probe", 0,
-                        [&](FunctionContext& ctx, const std::vector<Value>&) {
+                        [&](FunctionContext& ctx, std::span<const Value>) {
                             try {
                                 (void)db_.prepare("SELECT ssn FROM users");
                             } catch (const PolicyFailure&) {
@@ -650,7 +656,7 @@ TEST_F(PolicyTest, NestedOperationInUserFunctionContainsItsFailure) {
 TEST_F(PolicyTest, InvalidResultIsMisuse) {
     ScopedPolicy policy(
         db_, [](const AuthorizerRequest&) { return static_cast<Result>(42); });
-    EXPECT_THROW(db_.query("SELECT 1"), MisuseError);
+    EXPECT_THROW((void)db_.query("SELECT 1"), MisuseError);
 }
 
 // ============================================================================
@@ -666,7 +672,9 @@ TEST_F(PolicyTest, BlobIOOpenIsPolicyChecked) {
         ScopedPolicy policy(db_);
         policy.read_only();
         EXPECT_NO_THROW(BlobIO(db_, "main", "b", "data", 1));
-        EXPECT_THROW(BlobIO(db_, "main", "b", "data", 1, true), AuthError);
+        EXPECT_THROW(
+            BlobIO(db_, "main", "b", "data", 1, BlobOpenMode::ReadWrite),
+            AuthError);
     }
     {
         ScopedPolicy policy(db_);
@@ -754,22 +762,22 @@ TEST_F(PolicyTest, HardeningEffects) {
     db_.execute("PRAGMA writable_schema=OFF");
 
     db_.create_function("risky", 0,
-                        [](FunctionContext& c, const std::vector<Value>&) {
+                        [](FunctionContext& c, std::span<const Value>) {
                             c.set_result(int64_t{1});
                         });
     db_.create_function(
         "safe", 0,
-        [](FunctionContext& c, const std::vector<Value>&) {
+        [](FunctionContext& c, std::span<const Value>) {
             c.set_result(int64_t{2});
         },
-        SQLITE_UTF8 | SQLITE_INNOCUOUS);
+        FunctionFlag::Utf8 | FunctionFlag::Innocuous);
     db_.execute(
         "CREATE VIEW vr AS SELECT risky();"
         "CREATE VIEW vs AS SELECT safe();");
     {
         ScopedPolicy policy(db_);
         policy.trusted_schema(false);
-        EXPECT_ANY_THROW(db_.query("SELECT * FROM vr"));
+        EXPECT_ANY_THROW((void)db_.query("SELECT * FROM vr"));
         EXPECT_EQ(db_.query_value<int64_t>("SELECT * FROM vs"), 2);
     }
     EXPECT_EQ(db_.query_value<int64_t>("SELECT * FROM vr"), 1);
@@ -781,10 +789,10 @@ TEST_F(PolicyTest, HardeningEffects) {
 
 TEST_F(PolicyTest, MisuseIsRejected) {
     Database closed;
-    EXPECT_THROW(ScopedPolicy{closed}, MisuseError);
+    EXPECT_THROW((void)ScopedPolicy{closed}, MisuseError);
     ScopedPolicy policy(db_);
     EXPECT_THROW(policy.add(AuthorizerCallback{}), MisuseError);
-    EXPECT_THROW((ScopedPolicy{db_, AuthorizerCallback{}}), MisuseError);
+    EXPECT_THROW((void)ScopedPolicy(db_, AuthorizerCallback{}), MisuseError);
     // A failed constructor leaves the previous policy in place.
     policy.deny_delete();
     EXPECT_THROW(db_.execute("DELETE FROM audit_log"), AuthError);

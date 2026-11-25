@@ -17,11 +17,12 @@ namespace sqlitex {
 // ============================================================================
 
 BlobIO::BlobIO(Database& db, std::string_view db_name, std::string_view table,
-               std::string_view column, int64_t rowid, bool readwrite)
+               std::string_view column, int64_t rowid, BlobOpenMode mode)
     : db_(&db) {
     std::string db_str(db_name);
     std::string tbl_str(table);
     std::string col_str(column);
+    bool const readwrite = (mode == BlobOpenMode::ReadWrite);
 
     detail::check_blob_access(db, db_name, table, column, readwrite);
 
@@ -58,14 +59,20 @@ BlobIO& BlobIO::operator=(BlobIO&& other) noexcept {
 // I/O
 // ============================================================================
 
-void BlobIO::read(void* buffer, int size, int offset) {
-    int const rc = sqlite3_blob_read(blob_, buffer, size, offset);
+void BlobIO::read(std::span<std::byte> buffer, int offset) {
+    int const rc = sqlite3_blob_read(blob_, buffer.data(),
+                                     static_cast<int>(buffer.size()), offset);
     throw_on_error(rc, db_->handle());
 }
 
-void BlobIO::write(const void* data, int size, int offset) {
-    int const rc = sqlite3_blob_write(blob_, data, size, offset);
+void BlobIO::write(std::span<const std::byte> data, int offset) {
+    int const rc = sqlite3_blob_write(blob_, data.data(),
+                                      static_cast<int>(data.size()), offset);
     throw_on_error(rc, db_->handle());
+}
+
+void BlobIO::write(std::string_view text, int offset) {
+    write(std::as_bytes(std::span(text.data(), text.size())), offset);
 }
 
 int BlobIO::size() const noexcept {
@@ -81,11 +88,11 @@ void BlobIO::reopen(int64_t rowid) {
 // Convenience
 // ============================================================================
 
-std::vector<uint8_t> BlobIO::read_all() {
+std::vector<std::byte> BlobIO::read_all() {
     int const n = size();
-    std::vector<uint8_t> result(static_cast<std::size_t>(n));
+    std::vector<std::byte> result(static_cast<std::size_t>(n));
     if (n > 0) {
-        read(result.data(), n, 0);
+        read(std::span<std::byte>(result), 0);
     }
     return result;
 }
@@ -94,17 +101,18 @@ std::string BlobIO::read_all_text() {
     int const n = size();
     std::string result(static_cast<std::size_t>(n), '\0');
     if (n > 0) {
-        read(result.data(), n, 0);
+        read(std::as_writable_bytes(std::span(result.data(), result.size())),
+             0);
     }
     return result;
 }
 
-void BlobIO::write_all(const std::vector<uint8_t>& data) {
-    write_all(data.data(), static_cast<int>(data.size()));
+void BlobIO::write_all(std::span<const std::byte> data) {
+    write(data, 0);
 }
 
-void BlobIO::write_all(const void* data, int size) {
-    write(data, size, 0);
+void BlobIO::write_all(std::string_view text) {
+    write(text, 0);
 }
 
 } // namespace sqlitex

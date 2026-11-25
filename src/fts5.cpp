@@ -19,7 +19,7 @@ int emit_to_c_callback(void* pCtx, int tflags, const char* pToken, int nToken,
     try {
         std::string_view tok(pToken ? pToken : "",
                              nToken > 0 ? static_cast<std::size_t>(nToken) : 0);
-        return (*emit)(tflags, tok, iStart, iEnd);
+        return (*emit)(Fts5TokenFlags::from_raw(tflags), tok, iStart, iEnd);
     } catch (...) {
         return SQLITE_ERROR;
     }
@@ -72,12 +72,14 @@ int tokenizer_v2_tokenize_shim(::Fts5Tokenizer* pTok, void* pCtx, int flags,
         std::string_view locale(
             pLocale ? pLocale : "",
             nLocale > 0 ? static_cast<std::size_t>(nLocale) : 0);
-        Fts5TokenEmit emit = [pCtx, xToken](int tflags, std::string_view tok,
-                                            int start, int end) -> int {
-            return xToken(pCtx, tflags, tok.empty() ? "" : tok.data(),
+        Fts5TokenEmit emit = [pCtx, xToken](Fts5TokenFlags tflags,
+                                            std::string_view tok, int start,
+                                            int end) -> int {
+            return xToken(pCtx, tflags.raw(), tok.empty() ? "" : tok.data(),
                           static_cast<int>(tok.size()), start, end);
         };
-        return holder->impl->tokenize(flags, text, locale, emit);
+        return holder->impl->tokenize(Fts5TokenizeFlags::from_raw(flags), text,
+                                      locale, emit);
     } catch (const Error& e) {
         return static_cast<int>(e.code());
     } catch (...) {
@@ -401,15 +403,18 @@ bool Fts5Api::has_tokenizer(std::string_view name) const {
 }
 
 void Fts5Api::tokenize_with(std::string_view tokenizer_name,
-                            const std::vector<std::string>& args, int flags,
-                            std::string_view text,
+                            std::span<const std::string_view> args,
+                            Fts5TokenizeFlags flags, std::string_view text,
                             const Fts5TokenEmit& on_token,
                             std::string_view locale) const {
     std::string name_str(tokenizer_name);
+    std::vector<std::string> owned_args;
+    owned_args.reserve(args.size());
     std::vector<const char*> c_args;
     c_args.reserve(args.size());
-    for (const auto& a : args) {
-        c_args.push_back(a.c_str());
+    for (auto a : args) {
+        owned_args.emplace_back(a);
+        c_args.push_back(owned_args.back().c_str());
     }
 
     void* user_data = nullptr;
@@ -435,7 +440,7 @@ void Fts5Api::tokenize_with(std::string_view tokenizer_name,
         } guard{tok, inst};
 
         rc = tok->xTokenize(
-            inst, const_cast<Fts5TokenEmit*>(&on_token), flags,
+            inst, const_cast<Fts5TokenEmit*>(&on_token), flags.raw(),
             text.empty() ? "" : text.data(), static_cast<int>(text.size()),
             locale.empty() ? nullptr : locale.data(),
             static_cast<int>(locale.size()), emit_to_c_callback);
@@ -464,7 +469,7 @@ void Fts5Api::tokenize_with(std::string_view tokenizer_name,
         }
     } guard{&tok, inst};
 
-    rc = tok.xTokenize(inst, const_cast<Fts5TokenEmit*>(&on_token), flags,
+    rc = tok.xTokenize(inst, const_cast<Fts5TokenEmit*>(&on_token), flags.raw(),
                        text.empty() ? "" : text.data(),
                        static_cast<int>(text.size()), emit_to_c_callback);
     if (rc != SQLITE_OK && rc != SQLITE_DONE) {

@@ -2,17 +2,24 @@
 
 #include "sqlitex_export.h"
 
-#include "sqlitex/error.h"
-#include "sqlitex/value.h"
-#include "sqlitex/statement.h"
-#include "sqlitex/function.h"
-
+#include "sqlitex/concepts.h"
 #include "sqlitex/detail/sqlite3_fwd.h"
+#include "sqlitex/error.h"
+#include "sqlitex/flags.h"
+#include "sqlitex/function.h"
+#include "sqlitex/statement.h"
+#include "sqlitex/value.h"
 
+#include <chrono>
+#include <concepts>
+#include <cstddef>
 #include <exception>
+#include <filesystem>
 #include <functional>
+#include <initializer_list>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -47,18 +54,10 @@ enum class OpenFlag : int {
     ExResCode = SQLITE_OPEN_EXRESCODE,
 };
 
-/// Bitmask of OpenFlag values.  Supports operator| between flags.
-using OpenFlags = int;
+template <>
+struct EnableBitmaskOperators<OpenFlag> : std::true_type {};
 
-inline OpenFlags operator|(OpenFlag a, OpenFlag b) noexcept {
-    return static_cast<int>(a) | static_cast<int>(b);
-}
-inline OpenFlags operator|(OpenFlags a, OpenFlag b) noexcept {
-    return a | static_cast<int>(b);
-}
-inline OpenFlags operator|(OpenFlag a, OpenFlags b) noexcept {
-    return static_cast<int>(a) | b;
-}
+using OpenFlags = Flags<OpenFlag>;
 
 // ============================================================================
 // Prepare flags, Transaction modes, Checkpoint modes, Serialize/Deserialize
@@ -73,17 +72,10 @@ enum class PrepareFlag : unsigned int {
     FromDdl = SQLITE_PREPARE_FROM_DDL,
 };
 
-using PrepareFlags = unsigned int;
+template <>
+struct EnableBitmaskOperators<PrepareFlag> : std::true_type {};
 
-inline PrepareFlags operator|(PrepareFlag a, PrepareFlag b) noexcept {
-    return static_cast<unsigned int>(a) | static_cast<unsigned int>(b);
-}
-inline PrepareFlags operator|(PrepareFlags a, PrepareFlag b) noexcept {
-    return a | static_cast<unsigned int>(b);
-}
-inline PrepareFlags operator|(PrepareFlag a, PrepareFlags b) noexcept {
-    return static_cast<unsigned int>(a) | b;
-}
+using PrepareFlags = Flags<PrepareFlag>;
 
 enum class TransactionMode {
     Deferred,
@@ -95,6 +87,12 @@ enum class TxnState : int {
     None = SQLITE_TXN_NONE,
     Read = SQLITE_TXN_READ,
     Write = SQLITE_TXN_WRITE,
+};
+
+enum class DbReadOnlyState : int {
+    NoSuchSchema = -1,
+    ReadWrite = 0,
+    ReadOnly = 1,
 };
 
 enum class CheckpointMode : int {
@@ -115,6 +113,11 @@ enum class SerializeFlag : unsigned int {
     NoCopy = SQLITE_SERIALIZE_NOCOPY,
 };
 
+template <>
+struct EnableBitmaskOperators<SerializeFlag> : std::true_type {};
+
+using SerializeFlags = Flags<SerializeFlag>;
+
 enum class DeserializeFlag : unsigned int {
     None = 0,
     FreeOnClose = SQLITE_DESERIALIZE_FREEONCLOSE,
@@ -122,39 +125,23 @@ enum class DeserializeFlag : unsigned int {
     ReadOnly = SQLITE_DESERIALIZE_READONLY,
 };
 
-using DeserializeFlags = unsigned int;
+template <>
+struct EnableBitmaskOperators<DeserializeFlag> : std::true_type {};
 
-inline DeserializeFlags operator|(DeserializeFlag a,
-                                  DeserializeFlag b) noexcept {
-    return static_cast<unsigned int>(a) | static_cast<unsigned int>(b);
-}
-inline DeserializeFlags operator|(DeserializeFlags a,
-                                  DeserializeFlag b) noexcept {
-    return a | static_cast<unsigned int>(b);
-}
-inline DeserializeFlags operator|(DeserializeFlag a,
-                                  DeserializeFlags b) noexcept {
-    return static_cast<unsigned int>(a) | b;
-}
+using DeserializeFlags = Flags<DeserializeFlag>;
 
 enum class TraceFlag : unsigned int {
+    None = 0,
     Stmt = SQLITE_TRACE_STMT,
     Profile = SQLITE_TRACE_PROFILE,
     Row = SQLITE_TRACE_ROW,
     Close = SQLITE_TRACE_CLOSE,
 };
 
-using TraceFlags = unsigned int;
+template <>
+struct EnableBitmaskOperators<TraceFlag> : std::true_type {};
 
-inline TraceFlags operator|(TraceFlag a, TraceFlag b) noexcept {
-    return static_cast<unsigned int>(a) | static_cast<unsigned int>(b);
-}
-inline TraceFlags operator|(TraceFlags a, TraceFlag b) noexcept {
-    return a | static_cast<unsigned int>(b);
-}
-inline TraceFlags operator|(TraceFlag a, TraceFlags b) noexcept {
-    return static_cast<unsigned int>(a) | b;
-}
+using TraceFlags = Flags<TraceFlag>;
 
 enum class DbConfig : int {
     EnableFKey = SQLITE_DBCONFIG_ENABLE_FKEY,
@@ -228,10 +215,10 @@ struct ColumnMetadata {
 };
 
 struct TraceEvent {
-    unsigned int type = 0;
+    TraceFlag type = TraceFlag::Stmt;
     sqlite3_stmt* stmt = nullptr;
     std::string_view sql;
-    int64_t duration_ns = 0;
+    std::chrono::nanoseconds duration{0};
     void* p = nullptr;
     void* x = nullptr;
 };
@@ -252,36 +239,59 @@ class SQLITEX_EXPORT SerializedDatabase {
     SerializedDatabase& operator=(const SerializedDatabase&) = delete;
 
     /// Allocate an owned sqlite3_malloc64 buffer copied from `data`.
-    [[nodiscard]] static SerializedDatabase copy_from(const void* data,
-                                                      int64_t size);
+    [[nodiscard]] static SerializedDatabase copy_from(
+        std::span<const std::byte> data);
+
+    template <ConstByteRange R>
+        requires(
+            !std::same_as<std::remove_cvref_t<R>, std::span<const std::byte>>)
+    [[nodiscard]] static SerializedDatabase copy_from(const R& data) {
+        return copy_from(to_const_bytes(data));
+    }
 
     explicit operator bool() const noexcept {
         return data_ != nullptr;
     }
 
-    unsigned char* data() noexcept {
+    [[nodiscard]] unsigned char* data() noexcept {
         return data_;
     }
-    const unsigned char* data() const noexcept {
+    [[nodiscard]] const unsigned char* data() const noexcept {
         return data_;
     }
-    int64_t size() const noexcept {
+    [[nodiscard]] int64_t size() const noexcept {
         return size_;
     }
-    bool empty() const noexcept {
+    [[nodiscard]] bool empty() const noexcept {
         return data_ == nullptr || size_ == 0;
     }
-    bool is_owned() const noexcept {
+    [[nodiscard]] bool is_owned() const noexcept {
         return owned_;
     }
 
-    /// Copy the serialized image into a std::vector<uint8_t>.
-    std::vector<uint8_t> to_bytes() const;
+    [[nodiscard]] std::span<const std::byte> bytes() const noexcept {
+        if (data_ == nullptr || size_ <= 0) {
+            return {};
+        }
+        return {reinterpret_cast<const std::byte*>(data_),
+                static_cast<std::size_t>(size_)};
+    }
+
+    [[nodiscard]] std::span<std::byte> writable_bytes() noexcept {
+        if (data_ == nullptr || size_ <= 0) {
+            return {};
+        }
+        return {reinterpret_cast<std::byte*>(data_),
+                static_cast<std::size_t>(size_)};
+    }
+
+    /// Copy the serialized image into an owned byte vector.
+    [[nodiscard]] std::vector<std::byte> to_bytes() const;
 
     /// Release ownership of the underlying sqlite3_malloc64 pointer.
     /// Caller becomes responsible for calling sqlite3_free() (or passing with
-    /// SQLITE_DESERIALIZE_FREEONCLOSE).
-    unsigned char* release() noexcept;
+    /// DeserializeFlag::FreeOnClose).
+    [[nodiscard]] unsigned char* release() noexcept;
 
     private:
     friend class Database;
@@ -301,7 +311,7 @@ class SQLITEX_EXPORT SerializedDatabase {
 
 class SQLITEX_EXPORT PreupdateContext {
     public:
-    PreupdateContext(sqlite3* db, int op, std::string_view db_name,
+    PreupdateContext(sqlite3* db, ChangeOperation op, std::string_view db_name,
                      std::string_view table_name, int64_t old_rowid,
                      int64_t new_rowid) noexcept
         : db_(db),
@@ -312,41 +322,41 @@ class SQLITEX_EXPORT PreupdateContext {
           new_rowid_(new_rowid) {
     }
 
-    int op() const noexcept {
+    [[nodiscard]] ChangeOperation op() const noexcept {
         return op_;
     }
-    std::string_view db_name() const noexcept {
+    [[nodiscard]] std::string_view db_name() const noexcept {
         return db_name_;
     }
-    std::string_view table_name() const noexcept {
+    [[nodiscard]] std::string_view table_name() const noexcept {
         return table_name_;
     }
-    int64_t old_rowid() const noexcept {
+    [[nodiscard]] int64_t old_rowid() const noexcept {
         return old_rowid_;
     }
-    int64_t new_rowid() const noexcept {
+    [[nodiscard]] int64_t new_rowid() const noexcept {
         return new_rowid_;
     }
 
     /// Number of columns in the row being modified.
-    int count() const noexcept;
+    [[nodiscard]] int count() const noexcept;
 
     /// Trigger depth (0 = direct statement, > 0 = trigger).
-    int depth() const noexcept;
+    [[nodiscard]] int depth() const noexcept;
 
     /// Column index being written by sqlite3_blob_write(), or -1 if not a blob
     /// write.
-    int blobwrite() const noexcept;
+    [[nodiscard]] int blobwrite() const noexcept;
 
     /// Column value before the change (valid for UPDATE / DELETE).
-    Value old_value(int col) const;
+    [[nodiscard]] Value old_value(int col) const;
 
     /// Column value after the change (valid for INSERT / UPDATE).
-    Value new_value(int col) const;
+    [[nodiscard]] Value new_value(int col) const;
 
     private:
     sqlite3* db_;
-    int op_;
+    ChangeOperation op_;
     std::string_view db_name_;
     std::string_view table_name_;
     int64_t old_rowid_;
@@ -363,9 +373,15 @@ class SQLITEX_EXPORT Database {
 
     /// Open a database file.
     explicit Database(std::string_view path,
-                      OpenFlags flags = static_cast<int>(OpenFlag::ReadWrite) |
-                                        static_cast<int>(OpenFlag::Create),
+                      OpenFlags flags = OpenFlag::ReadWrite | OpenFlag::Create,
                       std::string_view vfs = {});
+
+    template <FilesystemPath Path>
+    explicit Database(const Path& path,
+                      OpenFlags flags = OpenFlag::ReadWrite | OpenFlag::Create,
+                      std::string_view vfs = {})
+        : Database(detail::path_to_utf8(path), flags, vfs) {
+    }
 
     ~Database();
 
@@ -375,13 +391,33 @@ class SQLITEX_EXPORT Database {
     Database(const Database&) = delete;
     Database& operator=(const Database&) = delete;
 
-    /// Explicitly open/re-open the database.  Closes any previous connection.
+    /// Non-throwing open factory returning std::expected<Database, Error>.
+    [[nodiscard]] static Expected<Database> try_open(
+        std::string_view path,
+        OpenFlags flags = OpenFlag::ReadWrite | OpenFlag::Create,
+        std::string_view vfs = {});
+
+    template <FilesystemPath Path>
+    [[nodiscard]] static Expected<Database> try_open(
+        const Path& path,
+        OpenFlags flags = OpenFlag::ReadWrite | OpenFlag::Create,
+        std::string_view vfs = {}) {
+        return try_open(detail::path_to_utf8(path), flags, vfs);
+    }
+
+    /// Explicitly open/re-open the database. Closes any previous connection.
     void open(std::string_view path,
-              OpenFlags flags = static_cast<int>(OpenFlag::ReadWrite) |
-                                static_cast<int>(OpenFlag::Create),
+              OpenFlags flags = OpenFlag::ReadWrite | OpenFlag::Create,
               std::string_view vfs = {});
 
-    /// Close the database connection.  Called automatically on destruction.
+    template <FilesystemPath Path>
+    void open(const Path& path,
+              OpenFlags flags = OpenFlag::ReadWrite | OpenFlag::Create,
+              std::string_view vfs = {}) {
+        open(detail::path_to_utf8(path), flags, vfs);
+    }
+
+    /// Close the database connection. Called automatically on destruction.
     void close() noexcept;
 
     explicit operator bool() const noexcept {
@@ -405,61 +441,53 @@ class SQLITEX_EXPORT Database {
     [[nodiscard]] Statement prepare(std::string_view sql,
                                     std::string_view& tail);
 
-    /// Prepare a SQL statement with SQLITE_PREPARE_* flags
-    /// (sqlite3_prepare_v3). If `tail` is non-null, receives the unparsed
-    /// suffix of `sql`.
+    /// Prepare a SQL statement with PrepareFlags (sqlite3_prepare_v3).
+    /// If `tail` is non-null, receives the unparsed suffix of `sql`.
     [[nodiscard]] Statement prepare_v3(std::string_view sql,
-                                       PrepareFlags flags = 0,
+                                       PrepareFlags flags = PrepareFlag::None,
                                        std::string_view* tail = nullptr);
+
+    /// Non-throwing prepare returning std::expected<Statement, Error>.
+    [[nodiscard]] Expected<Statement> try_prepare(
+        std::string_view sql, PrepareFlags flags = PrepareFlag::None,
+        std::string_view* tail = nullptr);
 
     // === Custom SQL Functions ===
 
     /// Register a scalar SQL function.
-    /// \param name   Function name as used in SQL.
-    /// \param n_args Number of arguments (-1 = variadic).
-    /// \param fn     The callback, invoked once per row.
-    /// \param flags  SQLITE_UTF8 (default), SQLITE_DETERMINISTIC, etc.
     void create_function(std::string_view name, int n_args, ScalarFunction fn,
-                         int flags = SQLITE_UTF8);
+                         FunctionFlags flags = FunctionFlag::Utf8);
 
     /// Register a raw scalar SQL function receiving non-owning ValueRef
     /// arguments (supports subtype, pointer-passing, nochange, etc.).
     void create_raw_function(std::string_view name, int n_args,
-                             RawScalarFunction fn, int flags = SQLITE_UTF8);
+                             RawScalarFunction fn,
+                             FunctionFlags flags = FunctionFlag::Utf8);
 
     /// Unregister a previously registered SQL function.
     void drop_function(std::string_view name, int n_args,
-                       int flags = SQLITE_UTF8);
+                       FunctionFlags flags = FunctionFlag::Utf8);
 
     /// Register an aggregate SQL function.
-    /// \param name    Function name.
-    /// \param n_args  Number of arguments (-1 = variadic).
-    /// \param factory Produces a new AggregateFunction instance per group.
-    /// \param flags   SQLITE_UTF8, etc.
     void create_aggregate(
         std::string_view name, int n_args,
         std::function<std::unique_ptr<AggregateFunction>()> factory,
-        int flags = SQLITE_UTF8);
+        FunctionFlags flags = FunctionFlag::Utf8);
 
     /// Register a window SQL function.
-    /// \param name    Function name.
-    /// \param n_args  Number of arguments (-1 = variadic).
-    /// \param factory Produces a new WindowFunction instance per partition.
-    /// \param flags   SQLITE_UTF8, etc.
     void create_window_function(
         std::string_view name, int n_args,
         std::function<std::unique_ptr<WindowFunction>()> factory,
-        int flags = SQLITE_UTF8);
+        FunctionFlags flags = FunctionFlag::Utf8);
 
-    /// Convenience: register an aggregate with explicit state type T.
-    /// The step/final lambdas receive a reference to T for per-group state.
-    template <typename T>
+    /// Convenience: register an aggregate with explicit default-initializable
+    /// state type T.
+    template <std::default_initializable T>
     void create_aggregate(
         std::string_view name, int n_args,
-        std::function<void(FunctionContext&, T&, const std::vector<Value>&)>
-            step,
+        std::function<void(FunctionContext&, T&, std::span<const Value>)> step,
         std::function<void(FunctionContext&, T&)> final,
-        int flags = SQLITE_UTF8);
+        FunctionFlags flags = FunctionFlag::Utf8);
 
     /// Ensure a function name exists for virtual table xFindFunction
     /// overloading (sqlite3_overload_function).
@@ -486,18 +514,18 @@ class SQLITEX_EXPORT Database {
     // === Virtual Table Modules ===
 
     /// Register a virtual table module.
-    /// \param name    Module name (used in CREATE VIRTUAL TABLE ... USING
-    /// name).
-    /// \param factory Produces a new VirtualTable instance per connection.
-    /// \param flags   e.g. SQLITE_VTAB_INNOCUOUS.
     /// \return RAII handle; module is unregistered when destroyed.
-    ModuleRegistration create_module(
+    [[nodiscard]] ModuleRegistration create_module(
         std::string_view name,
-        std::function<std::unique_ptr<VirtualTable>()> factory, int flags = 0);
+        std::function<std::unique_ptr<VirtualTable>()> factory);
 
-    /// Drop all virtual table modules except those listed in `keep`
-    /// (sqlite3_drop_modules).
-    void drop_modules(const std::vector<std::string>& keep = {});
+    /// Drop all virtual table modules (or all except those listed in `keep`).
+    void drop_modules();
+    void drop_modules(std::span<const std::string_view> keep);
+    void drop_modules(std::initializer_list<std::string_view> keep) {
+        drop_modules(
+            std::span<const std::string_view>(keep.begin(), keep.end()));
+    }
 
     // === Loadable Extensions ===
 
@@ -508,29 +536,39 @@ class SQLITEX_EXPORT Database {
     void load_extension(std::string_view path,
                         std::string_view entry_point = {});
 
+    template <FilesystemPath Path>
+    void load_extension(const Path& path, std::string_view entry_point = {}) {
+        load_extension(detail::path_to_utf8(path), entry_point);
+    }
+
     // === Serialize / Deserialize ===
 
     /// Serialize a database schema into a contiguous memory buffer
     /// (sqlite3_serialize).
     [[nodiscard]] SerializedDatabase serialize(
         std::string_view schema = "main",
-        unsigned int flags = static_cast<unsigned int>(SerializeFlag::None));
+        SerializeFlags flags = SerializeFlag::None);
 
     /// Replace a database schema with an in-memory serialized image
     /// (sqlite3_deserialize).
-    void deserialize(
-        std::string_view schema, SerializedDatabase&& data,
-        DeserializeFlags flags =
-            static_cast<unsigned int>(DeserializeFlag::FreeOnClose) |
-            static_cast<unsigned int>(DeserializeFlag::Resizeable));
+    void deserialize(std::string_view schema, SerializedDatabase&& data,
+                     DeserializeFlags flags = DeserializeFlag::FreeOnClose |
+                                              DeserializeFlag::Resizeable);
 
     /// Deserialize from a caller-owned byte buffer. When FreeOnClose is set in
     /// `flags` (the default), the buffer is copied into SQLite-owned memory.
-    void deserialize(
-        std::string_view schema, const void* data, int64_t size,
-        DeserializeFlags flags =
-            static_cast<unsigned int>(DeserializeFlag::FreeOnClose) |
-            static_cast<unsigned int>(DeserializeFlag::Resizeable));
+    void deserialize(std::string_view schema, std::span<const std::byte> data,
+                     DeserializeFlags flags = DeserializeFlag::FreeOnClose |
+                                              DeserializeFlag::Resizeable);
+
+    template <ConstByteRange R>
+        requires(
+            !std::same_as<std::remove_cvref_t<R>, std::span<const std::byte>>)
+    void deserialize(std::string_view schema, const R& data,
+                     DeserializeFlags flags = DeserializeFlag::FreeOnClose |
+                                              DeserializeFlag::Resizeable) {
+        deserialize(schema, to_const_bytes(data), flags);
+    }
 
     // === WAL ===
 
@@ -554,7 +592,7 @@ class SQLITEX_EXPORT Database {
     // === Hooks and Handlers ===
 
     using UpdateHook =
-        std::function<void(int op, std::string_view db_name,
+        std::function<void(ChangeOperation op, std::string_view db_name,
                            std::string_view table, int64_t rowid)>;
     /// Return true to allow commit, false to convert the commit into ROLLBACK.
     using CommitHook = std::function<bool()>;
@@ -581,27 +619,41 @@ class SQLITEX_EXPORT Database {
     void unlock_notify(UnlockNotifyHook cb);
 
     /// Configure blocking lock timeout (sqlite3_setlk_timeout).
-    void setlk_timeout(int ms, int flags = 0);
+    void setlk_timeout(std::chrono::milliseconds timeout, int flags = 0);
 
     // === Query Execution ===
 
-    /// Execute a single SQL statement (no result rows).
+    /// Execute one or more semicolon-separated SQL statements (no parameters).
     void execute(std::string_view sql);
 
-    /// Execute SQL with a per-row callback.
-    /// The callback receives column count, column values, and column names.
-    /// Return false to stop iteration early.
-    using RowCallback =
-        std::function<bool(int ncols, char** values, char** names)>;
+    /// Prepare, bind `args...`, and step a single parameterized SQL statement.
+    template <Bindable... Args>
+        requires(sizeof...(Args) >= 1)
+    void execute(std::string_view sql, Args&&... args);
+
+    /// Execute SQL with a type-safe per-row callback.
+    /// NULL values are delivered as std::nullopt. Return false to stop early.
+    using RowCallback = std::function<bool(
+        std::span<const std::optional<std::string_view>> values,
+        std::span<const std::string_view> names)>;
 
     void exec(std::string_view sql, RowCallback cb);
 
     /// Execute SQL and collect all rows as Value vectors.
-    std::vector<std::vector<Value>> query(std::string_view sql);
+    [[nodiscard]] std::vector<std::vector<Value>> query(std::string_view sql);
 
-    /// Convenience: execute SQL and return the first column of the first row.
-    template <typename T = int64_t>
-    std::optional<T> query_value(std::string_view sql);
+    /// Execute parameterized SQL and collect all rows as Value vectors.
+    template <Bindable... Args>
+        requires(sizeof...(Args) >= 1)
+    [[nodiscard]] std::vector<std::vector<Value>> query(std::string_view sql,
+                                                        Args&&... args);
+
+    /// Execute SQL (with optional bound parameters) and return the first
+    /// column of the first row. Constrained to OwnedColumnValue so non-owning
+    /// views (std::string_view, std::span) cannot dangle.
+    template <OwnedColumnValue T = int64_t, Bindable... Args>
+    [[nodiscard]] std::optional<T> query_value(std::string_view sql,
+                                               Args&&... args);
 
     // === Transactions & Savepoints ===
 
@@ -609,47 +661,38 @@ class SQLITEX_EXPORT Database {
     void commit();
     void rollback();
 
-    /// RAII transaction guard.  Commits on normal scope exit; rolls back
-    /// if an exception is in flight or rollback() was called explicitly.
-    class Transaction {
+    /// RAII transaction guard.
+    /// Rolls back on destruction unless commit() was explicitly called.
+    class [[nodiscard]] Transaction {
         public:
         explicit Transaction(Database& db,
                              TransactionMode mode = TransactionMode::Deferred)
-            : db_(&db), exceptions_(std::uncaught_exceptions()) {
+            : db_(&db) {
             db_->begin_transaction(mode);
         }
         ~Transaction() {
-            if (db_ != nullptr) {
-                const char* sql = (std::uncaught_exceptions() > exceptions_)
-                                      ? "ROLLBACK"
-                                      : "COMMIT";
+            if (db_ != nullptr && !db_->is_autocommit()) {
                 try {
-                    db_->execute(sql);
+                    db_->execute("ROLLBACK");
                 } catch (...) {
-                    // Intentionally empty: commit/rollback in destructor
-                    // must not throw.
+                    // Destructors must not throw.
                 }
             }
         }
 
         Transaction(Transaction&& other) noexcept
-            : db_(std::exchange(other.db_, nullptr)),
-              exceptions_(other.exceptions_) {
+            : db_(std::exchange(other.db_, nullptr)) {
         }
         Transaction& operator=(Transaction&& other) noexcept {
             if (this != &other) {
-                if (db_ != nullptr) {
-                    const char* sql = (std::uncaught_exceptions() > exceptions_)
-                                          ? "ROLLBACK"
-                                          : "COMMIT";
+                if (db_ != nullptr && !db_->is_autocommit()) {
                     try {
-                        db_->execute(sql);
+                        db_->execute("ROLLBACK");
                     } catch (...) {
-                        // Intentionally empty: must not throw in destructor
+                        // Must not throw during move-assignment.
                     }
                 }
                 db_ = std::exchange(other.db_, nullptr);
-                exceptions_ = other.exceptions_;
             }
             return *this;
         }
@@ -664,19 +707,19 @@ class SQLITEX_EXPORT Database {
         }
         void rollback() {
             if (db_ != nullptr) {
-                db_->execute("ROLLBACK");
-                db_ = nullptr;
+                Database* db = std::exchange(db_, nullptr);
+                db->execute("ROLLBACK");
             }
         }
 
         private:
         Database* db_ = nullptr;
-        int exceptions_ = 0;
     };
 
     /// RAII savepoint guard (supports nested transactions).
-    /// Releases on normal scope exit; rolls back and releases on exception.
-    class SQLITEX_EXPORT Savepoint {
+    /// Rolls back and releases on destruction unless release() was explicitly
+    /// called.
+    class [[nodiscard]] SQLITEX_EXPORT Savepoint {
         public:
         Savepoint(Database& db, std::string_view name);
         ~Savepoint();
@@ -698,17 +741,26 @@ class SQLITEX_EXPORT Database {
         private:
         Database* db_ = nullptr;
         std::string quoted_name_;
-        int exceptions_ = 0;
     };
+
+    /// Convenience factories returning RAII transaction / savepoint guards.
+    [[nodiscard]] Transaction transaction(
+        TransactionMode mode = TransactionMode::Deferred) {
+        return Transaction(*this, mode);
+    }
+
+    [[nodiscard]] Savepoint savepoint(std::string_view name) {
+        return Savepoint(*this, name);
+    }
 
     // === Configuration, Limits & Status ===
 
-    /// Configure a boolean SQLITE_DBCONFIG_* option.
-    /// Pass val = 0 to disable, 1 to enable, or -1 to query without changing.
-    bool db_config(DbConfig op, int val);
+    /// Enable or disable a boolean SQLITE_DBCONFIG_* option.
+    /// Returns the resulting state reported by SQLite.
+    bool db_config(DbConfig op, bool enable);
 
     /// Query a boolean SQLITE_DBCONFIG_* option without modifying it.
-    bool db_config_get(DbConfig op) const;
+    [[nodiscard]] bool db_config_get(DbConfig op) const;
 
     /// Set the name of the "main" database schema (SQLITE_DBCONFIG_MAINDBNAME).
     /// The Database owns the string storage for the lifetime of the connection.
@@ -721,59 +773,64 @@ class SQLITEX_EXPORT Database {
     /// Configure floating-point formatting digits (3..23) or pass 0 to query
     /// (SQLITE_DBCONFIG_FP_DIGITS).
     int set_fp_digits(int digits);
-    int fp_digits() const;
+    [[nodiscard]] int fp_digits() const;
 
     /// Query or change a per-connection runtime limit (sqlite3_limit).
     /// Pass new_val < 0 to query without modifying. Returns the previous limit.
     int limit(LimitCategory id, int new_val = -1);
 
     /// Query per-connection status metrics (sqlite3_db_status64).
-    DbStatusResult db_status(DbStatusOp op, bool reset_highwater = false) const;
+    [[nodiscard]] DbStatusResult db_status(DbStatusOp op,
+                                           bool reset_highwater = false) const;
 
     // === Utility & Introspection ===
 
-    int64_t last_insert_rowid() const noexcept;
+    [[nodiscard]] int64_t last_insert_rowid() const noexcept;
     void set_last_insert_rowid(int64_t rowid) noexcept;
-    int changes() const noexcept;
-    int64_t changes64() const noexcept;
-    int64_t total_changes() const noexcept;
-    int64_t total_changes64() const noexcept;
+    [[nodiscard]] int changes() const noexcept;
+    [[nodiscard]] int64_t changes64() const noexcept;
+    [[nodiscard]] int64_t total_changes() const noexcept;
+    [[nodiscard]] int64_t total_changes64() const noexcept;
 
-    int errcode() const noexcept;
-    int extended_errcode() const noexcept;
-    std::string_view errmsg() const noexcept;
-    int error_offset() const noexcept;
-    int system_errno() const noexcept;
+    [[nodiscard]] int errcode() const noexcept;
+    [[nodiscard]] int extended_errcode() const noexcept;
+    [[nodiscard]] std::string_view errmsg() const noexcept;
+    [[nodiscard]] int error_offset() const noexcept;
+    [[nodiscard]] int system_errno() const noexcept;
     void set_extended_result_codes(bool enable);
     int set_errmsg(int errcode, std::string_view msg = {});
 
     /// Interrupt a long-running query (safe to call from another thread).
     void interrupt();
-    bool is_interrupted() const noexcept;
+    [[nodiscard]] bool is_interrupted() const noexcept;
 
-    /// Set a busy timeout in milliseconds.
-    void set_busy_timeout(int ms);
+    /// Set a busy timeout duration.
+    void set_busy_timeout(std::chrono::milliseconds timeout);
 
     /// Check if in autocommit mode.
-    bool is_autocommit() const noexcept;
+    [[nodiscard]] bool is_autocommit() const noexcept;
 
     /// Query current transaction state (sqlite3_txn_state).
     /// Pass empty `schema` to query the highest state across all schemas.
-    TxnState txn_state(std::string_view schema = {}) const noexcept;
+    [[nodiscard]] TxnState txn_state(
+        std::string_view schema = {}) const noexcept;
 
-    /// Query read-only status of a schema (sqlite3_db_readonly):
-    /// 1 = read-only, 0 = read/write, -1 = no such schema.
-    int db_readonly(std::string_view schema = "main") const noexcept;
-    bool is_readonly(std::string_view schema = "main") const noexcept;
+    /// Query read-only status of a schema (sqlite3_db_readonly).
+    [[nodiscard]] DbReadOnlyState db_readonly(
+        std::string_view schema = "main") const noexcept;
+    [[nodiscard]] bool is_readonly(
+        std::string_view schema = "main") const noexcept;
 
     /// Get the filename for an attached database.
-    std::string_view db_filename(std::string_view db_name = "main") const;
+    [[nodiscard]] std::string_view db_filename(
+        std::string_view db_name = "main") const;
 
     /// Get the schema name at 0-based index (sqlite3_db_name).
-    std::optional<std::string_view> db_name(int index) const noexcept;
+    [[nodiscard]] std::optional<std::string_view> db_name(
+        int index) const noexcept;
 
     /// Return all attached schema names on this connection.
-    std::vector<std::string> db_names() const;
+    [[nodiscard]] std::vector<std::string> db_names() const;
 
     /// Flush dirty pager cache pages to disk (sqlite3_db_cacheflush).
     void db_cacheflush();
@@ -783,23 +840,37 @@ class SQLITEX_EXPORT Database {
     void db_release_memory();
 
     /// Iterate active prepared statements (sqlite3_next_stmt).
-    sqlite3_stmt* next_stmt(sqlite3_stmt* prev = nullptr) const noexcept;
-    std::vector<sqlite3_stmt*> active_statements() const;
+    [[nodiscard]] sqlite3_stmt* next_stmt(
+        sqlite3_stmt* prev = nullptr) const noexcept;
+    [[nodiscard]] std::vector<sqlite3_stmt*> active_statements() const;
 
     /// Query column schema metadata (sqlite3_table_column_metadata).
-    ColumnMetadata table_column_metadata(std::string_view table,
-                                         std::string_view column,
-                                         std::string_view db_name = {}) const;
+    [[nodiscard]] ColumnMetadata table_column_metadata(
+        std::string_view table, std::string_view column,
+        std::string_view db_name = {}) const;
 
     /// Check whether a table exists via sqlite3_table_column_metadata.
-    bool table_exists(std::string_view table,
-                      std::string_view db_name = {}) const;
+    [[nodiscard]] bool table_exists(std::string_view table,
+                                    std::string_view db_name = {}) const;
 
     /// Attach or retrieve arbitrary client data keyed by name
     /// (sqlite3_set_clientdata / sqlite3_get_clientdata).
     void set_clientdata(std::string_view name, void* data,
                         void (*destructor)(void*) = nullptr);
-    void* get_clientdata(std::string_view name) const noexcept;
+
+    /// Type-safe owning client data attachment.
+    template <typename T>
+    void set_clientdata(std::string_view name, std::unique_ptr<T> data) {
+        set_clientdata(name, data.release(), &detail::delete_typed<T>);
+    }
+
+    [[nodiscard]] void* get_clientdata(std::string_view name) const noexcept;
+
+    /// Type-safe client data retrieval.
+    template <typename T>
+    [[nodiscard]] T* get_clientdata_as(std::string_view name) const noexcept {
+        return static_cast<T*>(get_clientdata(name));
+    }
 
     /// Low-level VFS file control escape hatch (sqlite3_file_control).
     /// Returns the raw SQLite result code (SQLITE_OK, SQLITE_NOTFOUND, etc.).
@@ -832,46 +903,64 @@ class SQLITEX_EXPORT Database {
 // Template implementations
 // ============================================================================
 
-template <typename T>
-std::optional<T> Database::query_value(std::string_view sql) {
+template <Bindable... Args>
+    requires(sizeof...(Args) >= 1)
+void Database::execute(std::string_view sql, Args&&... args) {
     Statement stmt = prepare(sql);
-    if (!stmt.step())
-        return std::nullopt;
-    if (stmt.column_count() == 0)
-        return std::nullopt;
-    if constexpr (std::is_same_v<T, int64_t>) {
-        return stmt.column_int64(0);
-    } else if constexpr (std::is_same_v<T, double>) {
-        return stmt.column_double(0);
-    } else if constexpr (std::is_same_v<T, std::string_view>) {
-        // std::string_view would dangle: the Statement is destroyed on return.
-        // Use query_value<std::string> instead.
-        static_assert(!std::is_same_v<T, std::string_view>,
-                      "query_value<std::string_view> is unsafe: the returned "
-                      "view would dangle because the Statement is destroyed "
-                      "when this function returns. "
-                      "Use query_value<std::string> instead.");
-    } else if constexpr (std::is_same_v<T, std::string>) {
-        return std::string(stmt.column_text(0));
-    } else {
-        static_assert(sizeof(T) == 0, "Unsupported query_value<T> type");
-    }
+    stmt.bind_all(std::forward<Args>(args)...);
+    (void)stmt.step();
 }
 
-template <typename T>
+template <Bindable... Args>
+    requires(sizeof...(Args) >= 1)
+std::vector<std::vector<Value>> Database::query(std::string_view sql,
+                                                Args&&... args) {
+    Statement stmt = prepare(sql);
+    stmt.bind_all(std::forward<Args>(args)...);
+    std::vector<std::vector<Value>> rows;
+    while (stmt.step()) {
+        int const ncols = stmt.column_count();
+        std::vector<Value> row;
+        row.reserve(static_cast<std::size_t>(ncols));
+        for (int i = 0; i < ncols; ++i) {
+            row.push_back(stmt.column_value(i));
+        }
+        rows.push_back(std::move(row));
+    }
+    return rows;
+}
+
+template <OwnedColumnValue T, Bindable... Args>
+std::optional<T> Database::query_value(std::string_view sql, Args&&... args) {
+    Statement stmt = prepare(sql);
+    if constexpr (sizeof...(Args) > 0) {
+        stmt.bind_all(std::forward<Args>(args)...);
+    }
+    if (!stmt.step() || stmt.column_count() == 0) {
+        return std::nullopt;
+    }
+    using Decayed = std::remove_cvref_t<T>;
+    if constexpr (!std::same_as<Decayed, Value> &&
+                  !detail::OptionalInner<Decayed>::is_optional) {
+        if (stmt.column_is_null(0)) {
+            return std::nullopt;
+        }
+    }
+    return stmt.column_as<T>(0);
+}
+
+template <std::default_initializable T>
 void Database::create_aggregate(
     std::string_view name, int n_args,
-    std::function<void(FunctionContext&, T&, const std::vector<Value>&)> step,
-    std::function<void(FunctionContext&, T&)> final, int flags) {
-    // Wrap the state type T in an AggregateFunction subclass.
+    std::function<void(FunctionContext&, T&, std::span<const Value>)> step,
+    std::function<void(FunctionContext&, T&)> final, FunctionFlags flags) {
     struct TypedAggregate : public AggregateFunction {
         T state_{};
-        std::function<void(FunctionContext&, T&, const std::vector<Value>&)>
+        std::function<void(FunctionContext&, T&, std::span<const Value>)>
             step_fn{};
         std::function<void(FunctionContext&, T&)> final_fn{};
 
-        void step(FunctionContext& ctx,
-                  const std::vector<Value>& args) override {
+        void step(FunctionContext& ctx, std::span<const Value> args) override {
             step_fn(ctx, state_, args);
         }
         void final(FunctionContext& ctx) override {

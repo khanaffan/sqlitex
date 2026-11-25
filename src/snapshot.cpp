@@ -36,6 +36,16 @@ Snapshot Snapshot::get(Database& db, std::string_view schema) {
     return Snapshot(snap);
 }
 
+Expected<Snapshot> Snapshot::try_get(Database& db, std::string_view schema) {
+    std::string schema_str(schema);
+    sqlite3_snapshot* snap = nullptr;
+    int rc = sqlite3_snapshot_get(db.handle(), schema_str.c_str(), &snap);
+    if (rc != SQLITE_OK) {
+        return std::unexpected(make_sqlite_error(rc, db.handle()));
+    }
+    return Snapshot(snap);
+}
+
 void Snapshot::open(Database& db, std::string_view schema) const {
     if (snapshot_ == nullptr) {
         throw MisuseError(ErrorCode::Misuse,

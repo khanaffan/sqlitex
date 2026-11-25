@@ -2,7 +2,9 @@
 
 #include "sqlitex_export.h"
 
+#include "sqlitex/concepts.h"
 #include "sqlitex/error.h"
+#include "sqlitex/flags.h"
 
 #include "sqlitex/detail/session_api.h"
 
@@ -10,6 +12,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <span>
 #include <string_view>
 #include <vector>
 
@@ -40,8 +43,18 @@ enum class ChangesetAction {
 };
 
 // ============================================================================
-// Apply flags
+// Changeset start and apply flags
 // ============================================================================
+
+enum class ChangesetStartFlag : int {
+    None = 0,
+    Invert = SQLITE_CHANGESETSTART_INVERT,
+};
+
+template <>
+struct EnableBitmaskOperators<ChangesetStartFlag> : std::true_type {};
+
+using ChangesetStartFlags = Flags<ChangesetStartFlag>;
 
 enum class ApplyFlag : int {
     None = 0,
@@ -52,10 +65,13 @@ enum class ApplyFlag : int {
     NoUpdateLoop = SQLITE_CHANGESETAPPLY_NOUPDATELOOP,
 };
 
-using ApplyFlags = int; // bitmask of ApplyFlag
+template <>
+struct EnableBitmaskOperators<ApplyFlag> : std::true_type {};
+
+using ApplyFlags = Flags<ApplyFlag>;
 
 // ============================================================================
-// Changeset — value type wrapping a binary changeset/patchset blob
+// Changeset — value type wrapping a binary changeset blob
 // ============================================================================
 
 class SQLITEX_EXPORT Changeset {
@@ -65,8 +81,15 @@ class SQLITEX_EXPORT Changeset {
     /// Take ownership of a blob allocated by sqlite3_malloc.
     Changeset(void* data, int size) noexcept;
 
-    /// Create a Changeset by copying external data.
-    static Changeset copy_from(const void* data, int size);
+    /// Create a Changeset by copying bytes from a span or byte range.
+    [[nodiscard]] static Changeset copy_from(std::span<const std::byte> data);
+
+    template <ConstByteRange R>
+        requires(
+            !std::same_as<std::remove_cvref_t<R>, std::span<const std::byte>>)
+    [[nodiscard]] static Changeset copy_from(const R& data) {
+        return copy_from(to_const_bytes(data));
+    }
 
     ~Changeset() = default;
 
@@ -76,26 +99,33 @@ class SQLITEX_EXPORT Changeset {
     Changeset(const Changeset&) = delete;
     Changeset& operator=(const Changeset&) = delete;
 
-    explicit operator bool() const noexcept {
+    [[nodiscard]] explicit operator bool() const noexcept {
         return data_ != nullptr;
     }
 
-    int size() const noexcept {
-        return size_;
+    [[nodiscard]] std::size_t size() const noexcept {
+        return static_cast<std::size_t>(size_);
     }
-    const void* data() const noexcept {
+    [[nodiscard]] const void* data() const noexcept {
         return data_.get();
     }
-    bool empty() const noexcept {
+    [[nodiscard]] std::span<const std::byte> bytes() const noexcept {
+        if (data_ == nullptr || size_ <= 0) {
+            return {};
+        }
+        return {static_cast<const std::byte*>(data_.get()),
+                static_cast<std::size_t>(size_)};
+    }
+    [[nodiscard]] bool empty() const noexcept {
         return size_ == 0 || data_ == nullptr;
     }
 
     // === Operations ===
 
-    /// Create an iterator to traverse this changeset.
-    /// @param flags Pass SQLITE_CHANGESETSTART_INVERT to invert during
-    /// iteration
-    [[nodiscard]] ChangesetIterator begin(int flags = 0) const;
+    /// Create an iterator / input_range to traverse this changeset.
+    /// Pass ChangesetStartFlag::Invert to invert during iteration.
+    [[nodiscard]] ChangesetIterator changes(
+        ChangesetStartFlags flags = {}) const;
 
     /// Concatenate two changesets into a new one.
     [[nodiscard]] Changeset concat(const Changeset& other) const;
@@ -106,10 +136,6 @@ class SQLITEX_EXPORT Changeset {
     // === Apply ===
 
     /// Apply changeset to a database with conflict handling.
-    /// @param db              Target database
-    /// @param conflict_handler Resolves conflicts; receives ConflictType +
-    /// iterator
-    /// @param filter          Optional per-table filter (table name → allow)
     void apply(
         Database& db,
         std::function<ChangesetAction(ConflictType, const ChangesetIterator&)>
@@ -121,7 +147,8 @@ class SQLITEX_EXPORT Changeset {
         Database& db,
         std::function<ChangesetAction(ConflictType, const ChangesetIterator&)>
             conflict_handler,
-        ApplyFlags flags = 0, std::vector<uint8_t>* rebase_out = nullptr) const;
+        ApplyFlags flags = {},
+        std::vector<std::byte>* rebase_out = nullptr) const;
 
     /// Apply with per-change filter (v3 API) and optional rebase output.
     void apply_v3(
@@ -129,15 +156,12 @@ class SQLITEX_EXPORT Changeset {
         std::function<ChangesetAction(ConflictType, const ChangesetIterator&)>
             conflict_handler,
         std::function<bool(const ChangesetIterator&)> per_change_filter = {},
-        ApplyFlags flags = 0, std::vector<uint8_t>* rebase_out = nullptr) const;
+        ApplyFlags flags = {},
+        std::vector<std::byte>* rebase_out = nullptr) const;
 
     // === Streaming Apply ===
 
     /// Stream-apply a changeset from an input callback.
-    /// @param db               Target database
-    /// @param input            Input callback providing changeset data
-    /// @param conflict_handler Resolves conflicts
-    /// @param table_filter     Optional per-table filter
     static void apply_stream(
         Database& db, StreamInputFunc input,
         std::function<ChangesetAction(ConflictType, const ChangesetIterator&)>
@@ -149,7 +173,7 @@ class SQLITEX_EXPORT Changeset {
         Database& db, StreamInputFunc input,
         std::function<ChangesetAction(ConflictType, const ChangesetIterator&)>
             conflict_handler,
-        ApplyFlags flags = 0, std::vector<uint8_t>* rebase_out = nullptr);
+        ApplyFlags flags = {}, std::vector<std::byte>* rebase_out = nullptr);
 
     /// Stream-apply with per-change filter (v3 streaming API) and optional
     /// rebase output.
@@ -158,7 +182,7 @@ class SQLITEX_EXPORT Changeset {
         std::function<ChangesetAction(ConflictType, const ChangesetIterator&)>
             conflict_handler,
         std::function<bool(const ChangesetIterator&)> per_change_filter = {},
-        ApplyFlags flags = 0, std::vector<uint8_t>* rebase_out = nullptr);
+        ApplyFlags flags = {}, std::vector<std::byte>* rebase_out = nullptr);
 
     // === Streaming Operations ===
 
@@ -204,22 +228,30 @@ class SQLITEX_EXPORT Patchset {
     Patchset(const Patchset&) = delete;
     Patchset& operator=(const Patchset&) = delete;
 
-    explicit operator bool() const noexcept {
+    [[nodiscard]] explicit operator bool() const noexcept {
         return data_ != nullptr;
     }
 
-    int size() const noexcept {
-        return size_;
+    [[nodiscard]] std::size_t size() const noexcept {
+        return static_cast<std::size_t>(size_);
     }
-    const void* data() const noexcept {
+    [[nodiscard]] const void* data() const noexcept {
         return data_.get();
     }
-    bool empty() const noexcept {
+    [[nodiscard]] std::span<const std::byte> bytes() const noexcept {
+        if (data_ == nullptr || size_ <= 0) {
+            return {};
+        }
+        return {static_cast<const std::byte*>(data_.get()),
+                static_cast<std::size_t>(size_)};
+    }
+    [[nodiscard]] bool empty() const noexcept {
         return size_ == 0 || data_ == nullptr;
     }
 
-    /// Create an iterator for this patchset.
-    [[nodiscard]] ChangesetIterator begin(int flags = 0) const;
+    /// Create an iterator / input_range for this patchset.
+    [[nodiscard]] ChangesetIterator changes(
+        ChangesetStartFlags flags = {}) const;
 
     /// Apply patchset to a database.
     void apply(

@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <functional>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -15,34 +16,43 @@
 
 namespace sqlitex {
 
+/// SQLite threading modes (matches SQLITE_THREADSAFE compile-time values and
+/// sqlite3_config() threading verbs).
+enum class ThreadingMode : int {
+    SingleThread = 0,
+    Serialized = 1,
+    MultiThread = 2,
+};
+
 // ============================================================================
 // Library Version, Compile Options & Error Strings
 // ============================================================================
 
 /// Return the SQLite version string (e.g. "3.54.1").
-SQLITEX_EXPORT std::string_view libversion() noexcept;
+[[nodiscard]] SQLITEX_EXPORT std::string_view libversion() noexcept;
 
 /// Return the SQLite version number (e.g. 3054001 for 3.54.1).
-SQLITEX_EXPORT int libversion_number() noexcept;
+[[nodiscard]] SQLITEX_EXPORT int libversion_number() noexcept;
 
 /// Return the SQLite source check-in identifier string.
-SQLITEX_EXPORT std::string_view sourceid() noexcept;
+[[nodiscard]] SQLITEX_EXPORT std::string_view sourceid() noexcept;
 
-/// Return the SQLite thread-safety compile-time mode (0, 1, or 2).
-SQLITEX_EXPORT int threadsafe() noexcept;
+/// Return the SQLite thread-safety compile-time mode.
+[[nodiscard]] SQLITEX_EXPORT ThreadingMode threadsafe() noexcept;
 
 /// Check whether SQLite was compiled with a given option (e.g. "ENABLE_FTS5").
-SQLITEX_EXPORT bool compileoption_used(std::string_view option_name) noexcept;
+[[nodiscard]] SQLITEX_EXPORT bool compileoption_used(
+    std::string_view option_name) noexcept;
 
 /// Return the Nth compile option string, or std::nullopt if out of range.
-SQLITEX_EXPORT std::optional<std::string_view> compileoption_get(
+[[nodiscard]] SQLITEX_EXPORT std::optional<std::string_view> compileoption_get(
     int index) noexcept;
 
 /// Return all compile options compiled into SQLite.
-SQLITEX_EXPORT std::vector<std::string> compile_options();
+[[nodiscard]] SQLITEX_EXPORT std::vector<std::string> compile_options();
 
 /// Return the English description of an SQLite result code.
-SQLITEX_EXPORT std::string_view errstr(int sqlite_rc) noexcept;
+[[nodiscard]] SQLITEX_EXPORT std::string_view errstr(int sqlite_rc) noexcept;
 
 // ============================================================================
 // Library Lifecycle & Global Configuration
@@ -59,13 +69,6 @@ SQLITEX_EXPORT void enable_shared_cache(bool enabled);
 
 /// Emit a message to SQLite's global error log callback (sqlite3_log).
 SQLITEX_EXPORT void log(int errcode, std::string_view message) noexcept;
-
-/// SQLite global threading modes for config_threading_mode().
-enum class ThreadingMode {
-    SingleThread,
-    MultiThread,
-    Serialized,
-};
 
 /// Log callback type for config_log().
 using LogCallback = std::function<void(int errcode, std::string_view message)>;
@@ -167,10 +170,21 @@ class SQLITEX_EXPORT UriFilename {
     UriFilename() noexcept = default;
 
     /// Create a SQLite filename object with optional URI query parameters.
+    UriFilename(std::string_view database, std::string_view journal = {},
+                std::string_view wal = {},
+                std::span<const std::pair<std::string_view, std::string_view>>
+                    params = {});
+
     UriFilename(
-        std::string_view database, std::string_view journal = {},
-        std::string_view wal = {},
-        const std::vector<std::pair<std::string, std::string>>& params = {});
+        std::string_view database, std::string_view journal,
+        std::string_view wal,
+        std::initializer_list<std::pair<std::string_view, std::string_view>>
+            params)
+        : UriFilename(
+              database, journal, wal,
+              std::span<const std::pair<std::string_view, std::string_view>>(
+                  params.begin(), params.size())) {
+    }
 
     ~UriFilename();
 

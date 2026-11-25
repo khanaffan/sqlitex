@@ -2,18 +2,58 @@
 
 #include "sqlitex_export.h"
 
+#include "sqlitex/flags.h"
 #include "sqlitex/value.h"
 
 #include "sqlitex/detail/sqlite3_fwd.h"
 
+#include <cstddef>
 #include <functional>
+#include <iterator>
 #include <memory>
 #include <optional>
+#include <ranges>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
 
 namespace sqlitex {
+
+// ============================================================================
+// Virtual table strong enum types and bitmasks
+// ============================================================================
+
+enum class IndexScanFlag : int {
+    Unique = SQLITE_INDEX_SCAN_UNIQUE,
+    Hex = SQLITE_INDEX_SCAN_HEX,
+};
+
+template <>
+struct EnableBitmaskOperators<IndexScanFlag> : std::true_type {};
+
+using IndexScanFlags = Flags<IndexScanFlag>;
+
+enum class DistinctMode : int {
+    Normal = 0,
+    GroupBy = 1,
+    Distinct = 2,
+    DistinctOrderBy = 3,
+};
+
+enum class ConflictResolution : int {
+    Rollback = SQLITE_ROLLBACK,
+    Ignore = SQLITE_IGNORE,
+    Fail = SQLITE_FAIL,
+    Abort = SQLITE_ABORT,
+    Replace = SQLITE_REPLACE,
+};
+
+enum class SavepointOp : int {
+    Begin = 0,
+    Release = 1,
+    Rollback = 2,
+};
 
 // ============================================================================
 // IndexInfo — wraps sqlite3_index_info for xBestIndex
@@ -24,7 +64,7 @@ namespace sqlitex {
 class SQLITEX_EXPORT IndexInfo {
     public:
     /// Constraint operators.
-    enum Op : unsigned char {
+    enum class Op : unsigned char {
         Eq = SQLITE_INDEX_CONSTRAINT_EQ,
         Gt = SQLITE_INDEX_CONSTRAINT_GT,
         Le = SQLITE_INDEX_CONSTRAINT_LE,
@@ -60,13 +100,13 @@ class SQLITEX_EXPORT IndexInfo {
 
     // --- Input accessors ---
 
-    int num_constraints() const noexcept;
-    Constraint constraint(int i) const noexcept;
+    [[nodiscard]] int num_constraints() const noexcept;
+    [[nodiscard]] Constraint constraint(int i) const noexcept;
 
-    int num_order_by() const noexcept;
-    OrderBy order_by(int i) const noexcept;
+    [[nodiscard]] int num_order_by() const noexcept;
+    [[nodiscard]] OrderBy order_by(int i) const noexcept;
 
-    bool col_used(int column) const noexcept;
+    [[nodiscard]] bool col_used(int column) const noexcept;
 
     // --- Output setters ---
 
@@ -92,17 +132,16 @@ class SQLITEX_EXPORT IndexInfo {
     /// Set the estimated number of rows returned.
     void set_estimated_rows(int64_t rows);
 
-    /// Set the index flags (e.g. SQLITE_INDEX_SCAN_UNIQUE).
-    void set_idx_flags(int flags) noexcept;
+    /// Set the index scan flags (e.g. IndexScanFlag::Unique).
+    void set_idx_flags(IndexScanFlags flags) noexcept;
 
     /// Query the collation name used for constraint `constraint_index`
     /// (sqlite3_vtab_collation).
-    std::string_view collation(int constraint_index) const noexcept;
+    [[nodiscard]] std::string_view collation(
+        int constraint_index) const noexcept;
 
-    /// Query the DISTINCT mode for this query (sqlite3_vtab_distinct):
-    /// 0 = normal, 1 = GROUP BY/DISTINCT, 2 = DISTINCT, 3 = DISTINCT + ORDER
-    /// BY.
-    int distinct() const noexcept;
+    /// Query the DISTINCT mode for this query (sqlite3_vtab_distinct).
+    [[nodiscard]] DistinctMode distinct() const noexcept;
 
     /// Query or opt into handling an IN(...) constraint in a single xFilter
     /// call (sqlite3_vtab_in). Pass handle_mode = -1 to query, 0 to disable,
@@ -111,13 +150,13 @@ class SQLITEX_EXPORT IndexInfo {
 
     /// Query the RHS constant value of a constraint if known at planning time
     /// (sqlite3_vtab_rhs_value). Returns std::nullopt if unavailable.
-    std::optional<Value> rhs_value(int constraint_index) const;
+    [[nodiscard]] std::optional<Value> rhs_value(int constraint_index) const;
 
     // --- Raw access ---
-    sqlite3_index_info* handle() noexcept {
+    [[nodiscard]] sqlite3_index_info* handle() noexcept {
         return info_;
     }
-    const sqlite3_index_info* handle() const noexcept {
+    [[nodiscard]] const sqlite3_index_info* handle() const noexcept {
         return info_;
     }
 
@@ -129,8 +168,44 @@ class SQLITEX_EXPORT IndexInfo {
 // VtabInIterator — iterates elements of an IN(...) constraint in xFilter
 // ============================================================================
 
-class SQLITEX_EXPORT VtabInIterator {
+class SQLITEX_EXPORT VtabInIterator
+    : public std::ranges::view_interface<VtabInIterator> {
     public:
+    class Iterator {
+        public:
+        using iterator_concept = std::input_iterator_tag;
+        using iterator_category = std::input_iterator_tag;
+        using value_type = ValueRef;
+        using difference_type = std::ptrdiff_t;
+
+        Iterator() noexcept = default;
+        explicit Iterator(VtabInIterator* owner) noexcept : owner_(owner) {
+        }
+
+        [[nodiscard]] ValueRef operator*() const noexcept {
+            return owner_->current();
+        }
+
+        Iterator& operator++() {
+            if (!owner_->next()) {
+                owner_ = nullptr;
+            }
+            return *this;
+        }
+
+        void operator++(int) {
+            ++(*this);
+        }
+
+        [[nodiscard]] bool operator==(std::default_sentinel_t) const noexcept {
+            return owner_ == nullptr || owner_->done_;
+        }
+
+        private:
+        VtabInIterator* owner_ = nullptr;
+    };
+
+    VtabInIterator() noexcept = default;
     explicit VtabInIterator(sqlite3_value* in_list) noexcept;
     explicit VtabInIterator(const ValueRef& in_list) noexcept
         : VtabInIterator(in_list.handle()) {
@@ -140,17 +215,30 @@ class SQLITEX_EXPORT VtabInIterator {
     /// Returns true if a value is available via current() / current_value().
     bool next();
 
-    ValueRef current() const noexcept {
+    [[nodiscard]] ValueRef current() const noexcept {
         return ValueRef(current_);
     }
 
-    Value current_value() const {
+    [[nodiscard]] Value current_value() const {
         return current().to_value();
     }
 
+    [[nodiscard]] Iterator begin() {
+        if (!started_ && !done_) {
+            if (!next()) {
+                return Iterator{};
+            }
+        }
+        return done_ ? Iterator{} : Iterator{this};
+    }
+
+    [[nodiscard]] std::default_sentinel_t end() const noexcept {
+        return std::default_sentinel;
+    }
+
     /// Convenience: collect all elements from an IN list into a vector.
-    static std::vector<Value> collect(sqlite3_value* in_list);
-    static std::vector<Value> collect(const ValueRef& in_list) {
+    [[nodiscard]] static std::vector<Value> collect(sqlite3_value* in_list);
+    [[nodiscard]] static std::vector<Value> collect(const ValueRef& in_list) {
         return collect(in_list.handle());
     }
 
@@ -158,8 +246,11 @@ class SQLITEX_EXPORT VtabInIterator {
     sqlite3_value* in_list_ = nullptr;
     sqlite3_value* current_ = nullptr;
     bool started_ = false;
-    bool done_ = false;
+    bool done_ = true;
 };
+
+static_assert(std::ranges::input_range<VtabInIterator>);
+static_assert(std::ranges::view<VtabInIterator>);
 
 // ============================================================================
 // Cursor — per-query iteration state
@@ -177,14 +268,14 @@ class SQLITEX_EXPORT Cursor {
     /// when SQLITE_VTAB_IN is enabled). Default converts args to Value and
     /// delegates to filter().
     virtual int filter_raw(int idx_num, const char* idx_str,
-                           const std::vector<ValueRef>& argv);
+                           std::span<const ValueRef> argv);
 
     /// Begin a scan.
     /// \param idx_num  Index number set in best_index() via set_idx_num().
     /// \param idx_str  Index string set in best_index() via set_idx_str().
     /// \param argv     RHS values of constraints assigned via set_argv_index().
     virtual int filter(int idx_num, const char* idx_str,
-                       const std::vector<Value>& argv) = 0;
+                       std::span<const Value> argv) = 0;
 
     /// Advance to the next row.  Return SQLITE_OK on success.
     virtual int next() = 0;
@@ -217,10 +308,6 @@ enum class VtabConfig : int {
 /// **Read-only vtables**: override create(), best_index(), and open().
 /// **Read-write vtables**: additionally override update() and optionally
 ///   begin_txn(), sync(), commit_txn(), rollback_txn().
-///
-/// One instance is created per connection (via the factory) when the table
-/// is attached.  The C++ instance is destroyed when the table is detached
-/// or the database connection closes.
 class SQLITEX_EXPORT VirtualTable {
     public:
     VirtualTable() = default;
@@ -238,24 +325,23 @@ class SQLITEX_EXPORT VirtualTable {
 
     /// Return the current ON CONFLICT resolution mode inside update()
     /// (sqlite3_vtab_on_conflict).
-    static int vtab_on_conflict(sqlite3* db) noexcept;
+    [[nodiscard]] static ConflictResolution vtab_on_conflict(
+        sqlite3* db) noexcept;
 
     // --- Schema / lifecycle ---
 
     /// Called during CREATE VIRTUAL TABLE.
-    /// Must call sqlite3_declare_vtab(db, schema) to define the schema.
-    /// \param db     Database handle (for sqlite3_declare_vtab).
-    /// \param argc   Number of arguments (always >= 3).
+    /// Must call declare_vtab(db, schema) to define the schema.
+    /// \param db     Database handle (for declare_vtab).
     /// \param argv   argv[0]=module name, argv[1]=db name, argv[2]=table name,
-    ///               argv[3..]=arguments from the CREATE VIRTUAL TABLE
-    ///               statement.
+    ///               argv[3..]=arguments from CREATE VIRTUAL TABLE.
     /// \return SQLITE_OK on success, or an error code.
-    virtual int create(sqlite3* db, int argc, const char* const* argv) = 0;
+    virtual int create(sqlite3* db, std::span<const std::string_view> argv) = 0;
 
     /// Called when an existing table is re-connected (e.g., new connection).
-    /// Default calls create().  Override if connection differs from creation.
-    virtual int connect(sqlite3* db, int argc, const char* const* argv) {
-        return create(db, argc, argv);
+    /// Default calls create(). Override if connection differs from creation.
+    virtual int connect(sqlite3* db, std::span<const std::string_view> argv) {
+        return create(db, argv);
     }
 
     /// Called when the table is dropped (DROP TABLE / DROP VIRTUAL TABLE).
@@ -273,38 +359,24 @@ class SQLITEX_EXPORT VirtualTable {
     // --- Query planning ---
 
     /// Analyze a query and choose an execution plan.
-    /// Fill in output fields of `info`:
-    ///   - set_idx_num() / set_idx_str() to identify the plan to filter()
-    ///   - set_estimated_cost() / set_estimated_rows() for the cost estimate
-    ///   - set_argv_index() for each constraint used as an argument
-    ///   - set_omit() for constraints that don't need re-checking
     virtual int best_index(IndexInfo info) = 0;
 
     // --- Cursor management ---
 
     /// Create a new cursor for scanning this table.
-    /// Set `cursor` to a new Cursor instance and return SQLITE_OK.
-    /// The cursor will be destroyed by SQLite when the scan finishes.
     virtual int open(std::unique_ptr<Cursor>& cursor) = 0;
 
     // --- Mutating operations (read-write vtables only) ---
 
     /// Insert, update, or delete a row.
     ///
-    /// The argv vector mirrors the raw SQLite xUpdate arguments:
     /// - argv[0] : old rowid to delete (DELETE/UPDATE), or NULL Value for
     /// INSERT
     /// - argv[1] : new rowid (INSERT/UPDATE), or NULL Value
     /// - argv[2..] : new column values (INSERT/UPDATE)
     ///
-    /// \param argc    Number of elements in argv (same as argc from SQLite).
-    /// \param argv    Typed Value wrappers for all xUpdate arguments.
-    /// \param p_rowid On INSERT, set to the new rowid.
-    ///
     /// Default returns SQLITE_READONLY (making the table read-only).
-    virtual int update(int argc, const std::vector<Value>& argv,
-                       int64_t* p_rowid) {
-        (void)argc;
+    virtual int update(std::span<const Value> argv, int64_t* p_rowid) {
         (void)argv;
         (void)p_rowid;
         return SQLITE_READONLY;
@@ -331,12 +403,12 @@ class SQLITEX_EXPORT VirtualTable {
     }
 
     /// Rename a virtual table.
-    virtual int rename(const char* /*new_name*/) {
+    virtual int rename(std::string_view /*new_name*/) {
         return SQLITE_OK;
     }
 
     /// Optional: savepoint support (requires iVersion >= 2).
-    virtual int savepoint(int /*op*/, int /*savepoint*/) {
+    virtual int savepoint(SavepointOp /*op*/, int /*savepoint*/) {
         return SQLITE_OK;
     }
 
@@ -354,10 +426,9 @@ class SQLITEX_EXPORT VirtualTable {
 // ModuleRegistration — RAII handle for a registered module
 // ============================================================================
 
-/// Returned by Database::create_module().  Keeps the module registered
-/// until destroyed.  When the last copy is destroyed, the module is
-/// unregistered from the database.
-class SQLITEX_EXPORT ModuleRegistration {
+/// Returned by Database::create_module(). Keeps the module registered
+/// until destroyed.
+class [[nodiscard]] SQLITEX_EXPORT ModuleRegistration {
     public:
     ModuleRegistration() = default;
     ~ModuleRegistration();
@@ -367,7 +438,7 @@ class SQLITEX_EXPORT ModuleRegistration {
     ModuleRegistration(const ModuleRegistration&) = delete;
     ModuleRegistration& operator=(const ModuleRegistration&) = delete;
 
-    explicit operator bool() const noexcept {
+    [[nodiscard]] explicit operator bool() const noexcept {
         return db_ != nullptr;
     }
 
@@ -375,7 +446,7 @@ class SQLITEX_EXPORT ModuleRegistration {
     friend class Database;
     friend ModuleRegistration create_module_impl(
         sqlite3* db, std::string_view name,
-        std::function<std::unique_ptr<VirtualTable>()> factory, int flags);
+        std::function<std::unique_ptr<VirtualTable>()> factory);
 
     ModuleRegistration(sqlite3* db, std::string name,
                        std::shared_ptr<void> module_ctx);

@@ -230,8 +230,9 @@ void BcvClient::remove(std::string_view remote_name) {
     throw_bcv_error(rc, handle_, "sqlite3_bcv_delete failed");
 }
 
-void BcvClient::cleanup(int age_seconds) {
-    int const rc = sqlite3_bcv_cleanup(handle_, age_seconds);
+void BcvClient::cleanup(std::chrono::seconds min_age) {
+    int const rc =
+        sqlite3_bcv_cleanup(handle_, static_cast<int>(min_age.count()));
     throw_bcv_error(rc, handle_, "sqlite3_bcv_cleanup failed");
 }
 
@@ -306,7 +307,7 @@ void BcvClient::copy(std::string_view /*unused*/, std::string_view /*unused*/) {
 }
 void BcvClient::remove(std::string_view /*unused*/) {
 }
-void BcvClient::cleanup(int /*unused*/) {
+void BcvClient::cleanup(std::chrono::seconds /*unused*/) {
 }
 
 int BcvClient::errcode() const noexcept {

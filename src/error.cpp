@@ -182,6 +182,19 @@ template <typename ExceptionType>
 
 } // anonymous namespace
 
+Error make_sqlite_error(int rc, sqlite3* db) {
+    const char* msg = (db != nullptr) ? sqlite3_errmsg(db) : "unknown error";
+    if (msg == nullptr) {
+        msg = "unknown error";
+    }
+    return Error(rc, std::string(msg));
+}
+
+Error make_sqlite_error(int rc, std::string_view message) {
+    return Error(rc, message.empty() ? std::string("unknown error")
+                                     : std::string(message));
+}
+
 void throw_sqlite_error(int rc, sqlite3* db) {
     const char* msg = (db != nullptr) ? sqlite3_errmsg(db) : "unknown error";
     if (msg == nullptr) {
@@ -190,12 +203,13 @@ void throw_sqlite_error(int rc, sqlite3* db) {
     dispatch_error(rc & 0xFF, rc, std::string(msg));
 }
 
-void throw_on_error(int rc, const char* message) {
+void throw_on_error(int rc, std::string_view message) {
     if (rc == SQLITE_OK || rc == SQLITE_ROW || rc == SQLITE_DONE) {
         return;
     }
-    dispatch_error(rc & 0xFF, rc,
-                   std::string(message ? message : "unknown error"));
+    dispatch_error(
+        rc & 0xFF, rc,
+        message.empty() ? std::string("unknown error") : std::string(message));
 }
 
 } // namespace sqlitex

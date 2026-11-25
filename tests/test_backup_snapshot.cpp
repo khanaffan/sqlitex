@@ -34,13 +34,14 @@ TEST(BackupTest, FullCopyAndProgress) {
     Database src(":memory:");
     src.execute("CREATE TABLE items(id INTEGER PRIMARY KEY, payload TEXT);");
     {
-        Database::Transaction tx(src);
+        auto tx = src.transaction();
         auto ins = src.prepare("INSERT INTO items(payload) VALUES (?);");
         std::string big(256, 'x');
         for (int i = 0; i < 200; ++i) {
             ins.bind(1, big).execute();
             ins.reset();
         }
+        tx.commit();
     }
 
     Database dst(":memory:");
@@ -111,7 +112,7 @@ TEST(SerializeTest, RoundTripOwnedAndRawBytes) {
     EXPECT_GT(img.size(), 0);
     EXPECT_TRUE(img.is_owned());
 
-    std::vector<uint8_t> bytes = img.to_bytes();
+    std::vector<std::byte> bytes = img.to_bytes();
     EXPECT_EQ(static_cast<int64_t>(bytes.size()), img.size());
 
     // Deserialize moving the SerializedDatabase
@@ -125,7 +126,7 @@ TEST(SerializeTest, RoundTripOwnedAndRawBytes) {
 
     // Deserialize from raw byte vector as ReadOnly
     Database dst2(":memory:");
-    dst2.deserialize("main", bytes.data(), static_cast<int64_t>(bytes.size()),
+    dst2.deserialize("main", bytes,
                      DeserializeFlag::FreeOnClose | DeserializeFlag::ReadOnly);
     EXPECT_EQ(dst2.query_value<int64_t>("SELECT v FROM kv WHERE k='a';"), 1);
     EXPECT_THROW(dst2.execute("INSERT INTO kv VALUES ('d', 4);"), Error);
@@ -135,7 +136,7 @@ TEST(SerializeTest, CopyFromHelper) {
     Database src(":memory:");
     src.execute("CREATE TABLE t(x INT); INSERT INTO t VALUES (99);");
     auto orig = src.serialize();
-    auto copy = SerializedDatabase::copy_from(orig.data(), orig.size());
+    auto copy = SerializedDatabase::copy_from(orig.bytes());
     ASSERT_TRUE(copy);
     EXPECT_EQ(copy.size(), orig.size());
 

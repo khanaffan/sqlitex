@@ -142,7 +142,7 @@ TEST_F(StatementTest, ColumnCount) {
 
 TEST_F(StatementTest, ColumnName) {
     auto stmt = db_.prepare("SELECT id, name, score FROM t");
-    stmt.step();
+    ASSERT_TRUE(stmt.step());
     EXPECT_EQ(stmt.column_name(0), "id");
     EXPECT_EQ(stmt.column_name(1), "name");
     EXPECT_EQ(stmt.column_name(2), "score");
@@ -150,15 +150,15 @@ TEST_F(StatementTest, ColumnName) {
 
 TEST_F(StatementTest, ColumnType) {
     auto stmt = db_.prepare("SELECT * FROM t WHERE id = 1");
-    stmt.step();
-    EXPECT_EQ(stmt.column_type(0), SQLITE_INTEGER);
-    EXPECT_EQ(stmt.column_type(1), SQLITE_TEXT);
-    EXPECT_EQ(stmt.column_type(3), SQLITE_BLOB);
+    ASSERT_TRUE(stmt.step());
+    EXPECT_EQ(stmt.column_type(0), Value::Type::Integer);
+    EXPECT_EQ(stmt.column_type(1), Value::Type::Text);
+    EXPECT_EQ(stmt.column_type(3), Value::Type::Blob);
 }
 
 TEST_F(StatementTest, ColumnValue) {
     auto stmt = db_.prepare("SELECT * FROM t WHERE id = 1");
-    stmt.step();
+    ASSERT_TRUE(stmt.step());
 
     Value id = stmt.column_value(0);
     EXPECT_TRUE(id.is_integer());
@@ -166,28 +166,28 @@ TEST_F(StatementTest, ColumnValue) {
 
     Value name = stmt.column_value(1);
     EXPECT_TRUE(name.is_text());
-    EXPECT_EQ(name.as_text(), "Alice");
+    EXPECT_EQ(name.get_text(), "Alice");
 }
 
 TEST_F(StatementTest, ColumnIsNull) {
     auto stmt = db_.prepare("SELECT data FROM t WHERE id = 3");
-    stmt.step();
+    ASSERT_TRUE(stmt.step());
     EXPECT_TRUE(stmt.column_is_null(0));
 
     auto stmt2 = db_.prepare("SELECT name FROM t WHERE id = 1");
-    stmt2.step();
+    ASSERT_TRUE(stmt2.step());
     EXPECT_FALSE(stmt2.column_is_null(0));
 }
 
 TEST_F(StatementTest, OptionalColumn) {
     // data is NULL for id=3, so optional should be nullopt
     auto stmt = db_.prepare("SELECT data FROM t WHERE id = 3");
-    stmt.step();
+    ASSERT_TRUE(stmt.step());
     auto val = stmt.column_optional_text(0);
     EXPECT_FALSE(val.has_value());
 
     auto stmt2 = db_.prepare("SELECT name FROM t WHERE id = 1");
-    stmt2.step();
+    ASSERT_TRUE(stmt2.step());
     auto name = stmt2.column_optional_text(0);
     EXPECT_TRUE(name.has_value());
     EXPECT_EQ(*name, "Alice");
@@ -243,7 +243,7 @@ TEST_F(StatementTest, MoveConstruction) {
     EXPECT_TRUE(stmt2);
     EXPECT_FALSE(stmt1); // NOLINT
 
-    stmt2.step();
+    ASSERT_TRUE(stmt2.step());
     EXPECT_EQ(stmt2.column_int64(0), 1);
 }
 
@@ -252,7 +252,7 @@ TEST_F(StatementTest, MoveAssignment) {
     auto stmt2 = db_.prepare("SELECT * FROM t WHERE id = 2");
     stmt2 = std::move(stmt1);
     EXPECT_TRUE(stmt2);
-    stmt2.step();
+    ASSERT_TRUE(stmt2.step());
     EXPECT_EQ(stmt2.column_int64(0), 1);
 }
 

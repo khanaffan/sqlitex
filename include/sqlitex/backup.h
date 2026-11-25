@@ -17,6 +17,13 @@ class Database;
 // Backup — RAII wrapper for SQLite Online Backup API (sqlite3_backup*)
 // ============================================================================
 
+enum class BackupStepResult {
+    More,
+    Done,
+    Busy,
+    Locked,
+};
+
 class SQLITEX_EXPORT Backup {
     public:
     Backup() noexcept = default;
@@ -47,14 +54,17 @@ class SQLITEX_EXPORT Backup {
     }
 
     /// Copy up to `pages` pages (-1 copies all remaining pages).
-    /// Returns true if the backup has finished (SQLITE_DONE), false if more
-    /// pages remain (SQLITE_OK). Throws on errors (including SQLITE_BUSY /
-    /// SQLITE_LOCKED; use step_raw() or run() to retry transient locks).
-    bool step(int pages = -1);
+    /// Returns true if the backup has finished (Done), false if more pages
+    /// remain (More). Throws on errors including Busy / Locked; use
+    /// step_nonblocking(), try_step(), or run() to retry transient locks.
+    [[nodiscard]] bool step(int pages = -1);
 
-    /// Raw step: returns SQLITE_OK, SQLITE_DONE, SQLITE_BUSY, or SQLITE_LOCKED.
+    /// Copy up to `pages` pages without throwing on transient Busy/Locked.
     /// Throws on fatal errors.
-    int step_raw(int pages = -1);
+    [[nodiscard]] BackupStepResult step_nonblocking(int pages = -1);
+
+    /// Non-throwing step returning std::expected<BackupStepResult, Error>.
+    [[nodiscard]] Expected<BackupStepResult> try_step(int pages = -1);
 
     /// Finish the backup and release resources. Throws if an error occurred
     /// during the backup. Calling finish() explicitly lets you observe errors
@@ -62,14 +72,14 @@ class SQLITEX_EXPORT Backup {
     void finish();
 
     /// Number of pages still to be backed up (updated after the first step()).
-    int remaining() const noexcept;
+    [[nodiscard]] int remaining() const noexcept;
 
     /// Total number of pages in the source database (updated after step()).
-    int pagecount() const noexcept;
+    [[nodiscard]] int pagecount() const noexcept;
 
-    /// Run the entire backup to completion, retrying SQLITE_BUSY /
-    /// SQLITE_LOCKED with `sleep_on_busy`, optionally reporting progress after
-    /// each chunk, and calling finish().
+    /// Run the entire backup to completion, retrying Busy / Locked with
+    /// `sleep_on_busy`, optionally reporting progress after each chunk, and
+    /// calling finish().
     void run(int pages_per_step = -1,
              std::function<void(int remaining, int pagecount)> progress = {},
              std::chrono::milliseconds sleep_on_busy =

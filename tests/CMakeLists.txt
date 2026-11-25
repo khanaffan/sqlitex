@@ -18,6 +18,7 @@ set(TEST_SOURCES
     test_blobio.cpp
     test_policy.cpp
     test_bcvfs.cpp
+    test_cpp23.cpp
 )
 
 if(SQLITEX_HAS_SESSION)

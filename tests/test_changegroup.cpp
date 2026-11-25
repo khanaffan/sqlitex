@@ -104,7 +104,7 @@ TEST_F(ChangegroupTest, AddTwoChangesets) {
     Changeset merged = group.output();
     EXPECT_FALSE(merged.empty());
 
-    auto iter = merged.begin();
+    auto iter = merged.changes();
     int count = 0;
     while (iter.next())
         count++;
@@ -135,7 +135,7 @@ TEST_F(ChangegroupTest, AddThreeChangesets) {
 
     Changeset merged = group.output();
 
-    auto iter = merged.begin();
+    auto iter = merged.changes();
     int count = 0;
     while (iter.next())
         count++;
@@ -177,7 +177,7 @@ TEST_F(ChangegroupTest, MixChangesetsAndPatchsets) {
 
     Changeset merged = group.output();
 
-    auto iter = merged.begin();
+    auto iter = merged.changes();
     int count = 0;
     while (iter.next())
         count++;
@@ -265,7 +265,7 @@ TEST_F(ChangegroupTest, AddStream) {
     db1_.execute("INSERT INTO items VALUES (3, 'StreamAdd', 100)");
 
     Changeset cs = s1.changeset();
-    auto input = make_stream_input(cs.data(), cs.size());
+    auto input = make_stream_input(cs.bytes());
 
     Changegroup group;
     group.add_stream(std::move(input));
@@ -283,10 +283,9 @@ TEST_F(ChangegroupTest, OutputStream) {
     Changegroup group;
     group.add(s1.changeset());
 
-    std::vector<uint8_t> out;
-    StreamOutputFunc output = [&](const void* data, int size) -> int {
-        auto* bytes = static_cast<const uint8_t*>(data);
-        out.insert(out.end(), bytes, bytes + size);
+    std::vector<std::byte> out;
+    StreamOutputFunc output = [&](std::span<const std::byte> data) -> int {
+        out.insert(out.end(), data.begin(), data.end());
         return 0;
     };
 
@@ -295,7 +294,7 @@ TEST_F(ChangegroupTest, OutputStream) {
 
     // Compare with in-memory output
     Changeset mem = group.output();
-    ASSERT_EQ(out.size(), static_cast<std::size_t>(mem.size()));
+    ASSERT_EQ(out.size(), mem.size());
     EXPECT_EQ(std::memcmp(out.data(), mem.data(), mem.size()), 0);
 }
 
@@ -306,15 +305,14 @@ TEST_F(ChangegroupTest, AddAndOutputStreamRoundTrip) {
     db1_.execute("INSERT INTO items VALUES (3, 'RoundTrip', 100)");
 
     Changeset cs = s1.changeset();
-    auto input = make_stream_input(cs.data(), cs.size());
+    auto input = make_stream_input(cs.bytes());
 
     Changegroup group;
     group.add_stream(std::move(input));
 
-    std::vector<uint8_t> out;
-    StreamOutputFunc output = [&](const void* data, int size) -> int {
-        auto* bytes = static_cast<const uint8_t*>(data);
-        out.insert(out.end(), bytes, bytes + size);
+    std::vector<std::byte> out;
+    StreamOutputFunc output = [&](std::span<const std::byte> data) -> int {
+        out.insert(out.end(), data.begin(), data.end());
         return 0;
     };
     group.output_stream(output);
@@ -322,9 +320,7 @@ TEST_F(ChangegroupTest, AddAndOutputStreamRoundTrip) {
     EXPECT_FALSE(out.empty());
 
     // Verify the output can be applied to a target database
-    auto* merged_data = sqlite3_malloc(out.size());
-    std::memcpy(merged_data, out.data(), out.size());
-    Changeset merged(merged_data, static_cast<int>(out.size()));
+    Changeset merged = Changeset::copy_from(out);
 
     merged.apply(target_, [](ConflictType, const ChangesetIterator&) {
         return ChangesetAction::Abort;

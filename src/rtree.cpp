@@ -6,8 +6,12 @@
 
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <unordered_map>
 #include <utility>
+
+static_assert(std::is_same_v<sqlite3_rtree_dbl, double>,
+              "sqlitex assumes floating-point R-Tree coordinates");
 
 namespace sqlitex {
 
@@ -20,15 +24,16 @@ struct GeomCallbackRegistry {
         callbacks;
 };
 
-void destroy_geom_registry(void* ptr) noexcept {
-    delete static_cast<GeomCallbackRegistry*>(ptr);
-}
-
 int rtree_geom_shim(sqlite3_rtree_geometry* geom, int n_coord,
                     sqlite3_rtree_dbl* coords, int* p_res) noexcept {
     auto* cb = static_cast<RTreeGeometryCallback*>(geom->pContext);
     try {
-        bool const inside = (*cb)(geom->aParam, geom->nParam, coords, n_coord);
+        std::span<const double> param_span(
+            geom->aParam,
+            geom->nParam > 0 ? static_cast<std::size_t>(geom->nParam) : 0);
+        std::span<const double> coord_span(
+            coords, n_coord > 0 ? static_cast<std::size_t>(n_coord) : 0);
+        bool const inside = (*cb)(param_span, coord_span);
         *p_res = inside ? 1 : 0;
         return SQLITE_OK;
     } catch (...) {
@@ -68,6 +73,13 @@ double RTreeQueryInfo::param(int i) const noexcept {
     return static_cast<double>(info_->aParam[i]);
 }
 
+std::span<const double> RTreeQueryInfo::params() const noexcept {
+    if (info_->nParam <= 0 || info_->aParam == nullptr) {
+        return {};
+    }
+    return {info_->aParam, static_cast<std::size_t>(info_->nParam)};
+}
+
 ValueRef RTreeQueryInfo::sql_param(int i) const noexcept {
     if (i < 0 || i >= info_->nParam || info_->apSqlParam == nullptr) {
         return ValueRef(nullptr);
@@ -84,6 +96,13 @@ double RTreeQueryInfo::coord(int i) const noexcept {
         return 0.0;
     }
     return static_cast<double>(info_->aCoord[i]);
+}
+
+std::span<const double> RTreeQueryInfo::coords() const noexcept {
+    if (info_->nCoord <= 0 || info_->aCoord == nullptr) {
+        return {};
+    }
+    return {info_->aCoord, static_cast<std::size_t>(info_->nCoord)};
 }
 
 int RTreeQueryInfo::level() const noexcept {
@@ -145,16 +164,12 @@ void register_rtree_geometry_callback(Database& db, std::string_view name,
                     "R-Tree geometry callback must not be empty");
     }
 
-    auto* registry = static_cast<GeomCallbackRegistry*>(
-        sqlite3_get_clientdata(db.handle(), kGeomRegistryKey));
+    auto* registry =
+        db.get_clientdata_as<GeomCallbackRegistry>(kGeomRegistryKey);
     if (registry == nullptr) {
         auto owned = std::make_unique<GeomCallbackRegistry>();
-        int const reg_rc = sqlite3_set_clientdata(
-            db.handle(), kGeomRegistryKey, owned.get(), destroy_geom_registry);
-        if (reg_rc != SQLITE_OK) {
-            throw_on_error(reg_rc, db.handle());
-        }
-        registry = owned.release();
+        registry = owned.get();
+        db.set_clientdata(kGeomRegistryKey, std::move(owned));
     }
 
     std::string key(name);

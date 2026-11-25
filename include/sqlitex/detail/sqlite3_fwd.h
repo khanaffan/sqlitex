@@ -263,6 +263,9 @@ void sqlite3_free(void*);
 #ifndef SQLITE_SELFORDER1
 #define SQLITE_SELFORDER1 0x002000000
 #endif
+#ifndef SQLITE_SELFORDER1
+#define SQLITE_SELFORDER1 0x002000000
+#endif
 
 // Prepare flags (sqlite3_prepare_v3)
 #ifndef SQLITE_PREPARE_PERSISTENT
@@ -603,6 +606,9 @@ void sqlite3_free(void*);
 #endif
 #ifndef SQLITE_ROLLBACK
 #define SQLITE_ROLLBACK 1
+#endif
+#ifndef SQLITE_IGNORE
+#define SQLITE_IGNORE 2
 #endif
 #ifndef SQLITE_FAIL
 #define SQLITE_FAIL 3

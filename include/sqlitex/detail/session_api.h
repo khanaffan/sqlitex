@@ -222,86 +222,118 @@ void sqlite3rebaser_delete(sqlite3_rebaser*);
 
 #ifdef __cplusplus
 
+#include "sqlitex/concepts.h"
+
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <functional>
 #include <istream>
 #include <ostream>
+#include <span>
 
 namespace sqlitex {
 
 /// Streaming input callback. Called by SQLite to request the next chunk
 /// of changeset data.
 ///
-/// @param buffer  Destination buffer to fill
-/// @param size    On entry: buffer capacity in bytes.
-///                On return: number of bytes written (0 = end of input).
+/// @param buffer      Destination buffer span to fill (capacity =
+/// buffer.size())
+/// @param bytes_read  Set to the number of bytes written (0 = end of input).
 /// @return 0 on success, non-zero to abort the operation.
-using StreamInputFunc = std::function<int(void* buffer, int& size)>;
+using StreamInputFunc =
+    std::function<int(std::span<std::byte> buffer, std::size_t& bytes_read)>;
 
 /// Streaming output callback. Called by SQLite to deliver a chunk of
 /// changeset data.
 ///
-/// @param data  Pointer to the chunk
-/// @param size  Number of bytes in the chunk
+/// @param data  Span of bytes in the chunk.
 /// @return 0 on success, non-zero to abort the operation.
-using StreamOutputFunc = std::function<int(const void* data, int size)>;
+using StreamOutputFunc = std::function<int(std::span<const std::byte> data)>;
 
 /// Create a StreamInputFunc that reads from a std::istream.
 /// The istream must remain valid for the duration of the streaming call.
-inline StreamInputFunc make_stream_input(std::istream& is) {
-    return [&is](void* buf, int& size) -> int {
-        if (size <= 0)
+[[nodiscard]] inline StreamInputFunc make_stream_input(std::istream& is) {
+    return [&is](std::span<std::byte> buf, std::size_t& bytes_read) -> int {
+        if (buf.empty()) {
+            bytes_read = 0;
             return 1;
-        is.read(static_cast<char*>(buf), size);
-        size = static_cast<int>(is.gcount());
-        if (size == 0)
+        }
+        is.read(reinterpret_cast<char*>(buf.data()),
+                static_cast<std::streamsize>(buf.size()));
+        bytes_read = static_cast<std::size_t>(is.gcount());
+        if (bytes_read == 0) {
             return 0;
+        }
         return is.fail() && !is.eof() ? 1 : 0;
     };
 }
 
 /// Create a StreamOutputFunc that writes to a std::ostream.
 /// The ostream must remain valid for the duration of the streaming call.
-inline StreamOutputFunc make_stream_output(std::ostream& os) {
-    return [&os](const void* data, int size) -> int {
-        os.write(static_cast<const char*>(data), size);
+[[nodiscard]] inline StreamOutputFunc make_stream_output(std::ostream& os) {
+    return [&os](std::span<const std::byte> data) -> int {
+        if (!data.empty()) {
+            os.write(reinterpret_cast<const char*>(data.data()),
+                     static_cast<std::streamsize>(data.size()));
+        }
         return os.fail() ? 1 : 0;
     };
 }
 
-/// Create a StreamInputFunc that reads from an in-memory buffer.
-inline StreamInputFunc make_stream_input(const void* data, int size) {
-    auto* bytes = static_cast<const uint8_t*>(data);
-    return [bytes, size](void* buf, int& sz) mutable -> int {
-        if (size <= 0) {
-            sz = 0;
+/// Create a StreamInputFunc that reads from an in-memory byte span.
+[[nodiscard]] inline StreamInputFunc make_stream_input(
+    std::span<const std::byte> data) {
+    return [remaining = data](std::span<std::byte> buf,
+                              std::size_t& bytes_read) mutable -> int {
+        if (remaining.empty()) {
+            bytes_read = 0;
             return 0;
         }
-        int const n = (sz < size) ? sz : size;
-        std::memcpy(buf, bytes, static_cast<std::size_t>(n));
-        bytes += n;
-        size -= n;
-        sz = n;
+        std::size_t const n =
+            (buf.size() < remaining.size()) ? buf.size() : remaining.size();
+        std::memcpy(buf.data(), remaining.data(), n);
+        remaining = remaining.subspan(n);
+        bytes_read = n;
         return 0;
     };
+}
+
+/// Create a StreamInputFunc from any contiguous byte range.
+template <ConstByteRange R>
+    requires(!std::same_as<std::remove_cvref_t<R>, std::span<const std::byte>>)
+[[nodiscard]] inline StreamInputFunc make_stream_input(const R& data) {
+    return make_stream_input(to_const_bytes(data));
 }
 
 namespace detail {
 
 /// C-compatible shim for StreamOutputFunc.
 inline int stream_output_shim(void* ctx, const void* data, int n) noexcept {
-    auto& fn = *static_cast<StreamOutputFunc*>(ctx);
-    return fn(data, n);
+    try {
+        auto& fn = *static_cast<StreamOutputFunc*>(ctx);
+        std::span<const std::byte> span(
+            static_cast<const std::byte*>(data),
+            n > 0 ? static_cast<std::size_t>(n) : 0);
+        return fn(span);
+    } catch (...) {
+        return SQLITE_ERROR;
+    }
 }
 
 /// C-compatible shim for StreamInputFunc.
 inline int stream_input_shim(void* ctx, void* data, int* pn) noexcept {
-    auto& fn = *static_cast<StreamInputFunc*>(ctx);
-    int sz = *pn;
-    int rc = fn(data, sz);
-    *pn = sz;
-    return rc;
+    try {
+        auto& fn = *static_cast<StreamInputFunc*>(ctx);
+        std::size_t const cap = (*pn > 0) ? static_cast<std::size_t>(*pn) : 0;
+        std::size_t read = cap;
+        int const rc =
+            fn(std::span<std::byte>(static_cast<std::byte*>(data), cap), read);
+        *pn = static_cast<int>(read);
+        return rc;
+    } catch (...) {
+        return SQLITE_ERROR;
+    }
 }
 
 } // namespace detail

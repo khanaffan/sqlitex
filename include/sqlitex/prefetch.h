@@ -55,24 +55,25 @@ class SQLITEX_EXPORT PrefetchHandle {
 
     /// Run one prefetch iteration. Returns true when all blocks have been
     /// fetched (SQLITE_DONE), false when more work remains (SQLITE_OK).
-    bool step(int max_requests, std::chrono::milliseconds timeout);
+    [[nodiscard]] bool step(int max_requests,
+                            std::chrono::milliseconds timeout);
 
     /// Get current status.
-    PrefetchStatus status();
+    [[nodiscard]] PrefetchStatus status() const;
 
     /// Last status/error code from sqlite3_bcvfs_prefetch_errcode().
     /// Returns SQLITE_OK while running, SQLITE_DONE when finished, or an
     /// error code on failure.
-    int error_code() const noexcept;
+    [[nodiscard]] int error_code() const noexcept;
 
     /// Error message (valid when status == Error).
-    std::string error_message() const;
+    [[nodiscard]] std::string error_message() const;
 
     /// Number of outstanding prefetch HTTP requests (PFS_NOUTSTANDING).
-    int64_t outstanding_requests() const;
+    [[nodiscard]] int64_t outstanding_requests() const;
 
     /// Number of clients waiting on on-demand requests (PFS_NDEMAND).
-    int64_t on_demand_blocks() const;
+    [[nodiscard]] int64_t on_demand_blocks() const;
 
     private:
 #ifdef SQLITEX_HAS_BCVFS

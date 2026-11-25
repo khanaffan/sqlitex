@@ -33,7 +33,7 @@ class SimpleVTab : public VirtualTable {
           schema_(std::move(schema)) {
     }
 
-    int create(sqlite3* db, int, const char* const*) override {
+    int create(sqlite3* db, std::span<const std::string_view>) override {
         int rc = sqlite3_declare_vtab(db, schema_.c_str());
         if (rc != SQLITE_OK)
             return rc;
@@ -49,7 +49,7 @@ class SimpleVTab : public VirtualTable {
         // Check for equality constraints on each column
         for (int i = 0; i < info.num_constraints(); ++i) {
             auto c = info.constraint(i);
-            if (c.usable && c.op == IndexInfo::Eq) {
+            if (c.usable && c.op == IndexInfo::Op::Eq) {
                 info.set_argv_index(i, i);
                 info.set_estimated_cost(1.0);
                 info.set_estimated_rows(1);
@@ -72,8 +72,7 @@ class SimpleCursor : public Cursor {
     explicit SimpleCursor(const SimpleVTab& vtab) : vtab_(vtab) {
     }
 
-    int filter(int idx_num, const char*,
-               const std::vector<Value>& argv) override {
+    int filter(int idx_num, const char*, std::span<const Value> argv) override {
         (void)idx_num;
         pos_ = 0;
 
@@ -139,7 +138,7 @@ class RwVTab : public VirtualTable {
         std::vector<Value> values;
     };
 
-    int create(sqlite3* db, int, const char* const*) override {
+    int create(sqlite3* db, std::span<const std::string_view>) override {
         return sqlite3_declare_vtab(db,
                                     "CREATE TABLE x (id INTEGER, name TEXT)");
     }
@@ -165,8 +164,8 @@ class RwVTab : public VirtualTable {
     //           argv[1]=new rowid (same as old unless rowid changes),
     //           argv[2..N+1]=column values
     //
-    int update(int argc, const std::vector<Value>& argv,
-               int64_t* p_rowid) override {
+    int update(std::span<const Value> argv, int64_t* p_rowid) override {
+        const auto argc = static_cast<int>(argv.size());
         // DELETE
         if (argc == 1 && !argv[0].is_null()) {
             int64_t rowid = argv[0].as_int64();
@@ -233,7 +232,7 @@ class RwCursor : public Cursor {
     explicit RwCursor(const RwVTab& vtab) : vtab_(vtab) {
     }
 
-    int filter(int, const char*, const std::vector<Value>&) override {
+    int filter(int, const char*, std::span<const Value>) override {
         filtered_ = vtab_.rows_;
         pos_ = 0;
         return SQLITE_OK;
@@ -292,9 +291,9 @@ TEST(VirtualTableTest, ReadOnlyFullScan) {
     auto result = db.query("SELECT * FROM t ORDER BY id");
     ASSERT_EQ(result.size(), 2u);
     EXPECT_EQ(result[0][0].as_int64(), 1);
-    EXPECT_EQ(result[0][1].as_text(), "alice");
+    EXPECT_EQ(result[0][1].get_text(), "alice");
     EXPECT_EQ(result[1][0].as_int64(), 2);
-    EXPECT_EQ(result[1][1].as_text(), "bob");
+    EXPECT_EQ(result[1][1].get_text(), "bob");
 }
 
 TEST(VirtualTableTest, ReadOnlyWithConstraint) {
@@ -316,7 +315,7 @@ TEST(VirtualTableTest, ReadOnlyWithConstraint) {
 
     auto result = db.query("SELECT * FROM t WHERE id = 2");
     ASSERT_EQ(result.size(), 1u);
-    EXPECT_EQ(result[0][1].as_text(), "bob");
+    EXPECT_EQ(result[0][1].get_text(), "bob");
 }
 
 TEST(VirtualTableTest, ReadOnlyEmptyTable) {
@@ -374,7 +373,7 @@ TEST(VirtualTableTest, ReadOnlyColumnAccess) {
     auto result = db.query("SELECT a, b FROM t");
     ASSERT_EQ(result.size(), 1u);
     EXPECT_EQ(result[0][0].as_int64(), 100);
-    EXPECT_EQ(result[0][1].as_text(), "test");
+    EXPECT_EQ(result[0][1].get_text(), "test");
 }
 
 // ============================================================================
@@ -408,7 +407,7 @@ TEST(VirtualTableTest, InsertAndQuery) {
     if (result[0][0].is_integer())
         EXPECT_EQ(result[0][0].as_int64(), 1);
     if (result[0][1].is_text())
-        EXPECT_EQ(result[0][1].as_text(), "hello");
+        EXPECT_EQ(result[0][1].get_text(), "hello");
 
     // Second insert
     db.execute("INSERT INTO t (id, name) VALUES (2, 'world')");
@@ -420,7 +419,7 @@ TEST(VirtualTableTest, InsertAndQuery) {
         EXPECT_EQ(result[0][0].as_int64(), 1);
     EXPECT_TRUE(result[0][1].is_text());
     if (result[0][1].is_text())
-        EXPECT_EQ(result[0][1].as_text(), "hello");
+        EXPECT_EQ(result[0][1].get_text(), "hello");
 }
 
 TEST(VirtualTableTest, UpdateRow) {
@@ -439,7 +438,7 @@ TEST(VirtualTableTest, UpdateRow) {
     bool found = false;
     for (auto& row : result) {
         if (row[0].as_int64() == 1) {
-            EXPECT_EQ(row[1].as_text(), "new");
+            EXPECT_EQ(row[1].get_text(), "new");
             found = true;
         }
     }

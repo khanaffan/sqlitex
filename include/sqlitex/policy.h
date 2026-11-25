@@ -3,7 +3,9 @@
 #include "sqlitex_export.h"
 
 #include <functional>
+#include <initializer_list>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -104,7 +106,7 @@ using AuthorizerCallback =
 /// not be moved, closed or reopened while guarded, and guards must be
 /// destroyed in reverse order of construction.  Do not call
 /// sqlite3_set_authorizer() directly while a guard is alive.
-class SQLITEX_EXPORT ScopedPolicy {
+class [[nodiscard]] SQLITEX_EXPORT ScopedPolicy {
     public:
     explicit ScopedPolicy(Database& db);
     ScopedPolicy(Database& db, AuthorizerCallback callback);
@@ -252,9 +254,13 @@ class SQLITEX_EXPORT ScopedPolicy {
     ScopedPolicy& read_only();
 
     /// Deny every action not in `actions`, including unknown future codes.
-    /// Transaction and savepoint ending requests are always allowed.  Several
+    /// Transaction and savepoint ending requests are always allowed. Several
     /// allow_only() constraints intersect.
-    ScopedPolicy& allow_only(std::vector<AuthorizerAction> actions);
+    ScopedPolicy& allow_only(std::span<const AuthorizerAction> actions);
+    ScopedPolicy& allow_only(std::initializer_list<AuthorizerAction> actions) {
+        return allow_only(
+            std::span<const AuthorizerAction>(actions.begin(), actions.end()));
+    }
 
     // === Connection hardening (active guard only; restored on destruction) ===
 

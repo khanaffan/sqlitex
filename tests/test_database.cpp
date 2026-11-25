@@ -25,8 +25,7 @@ TEST(DatabaseTest, OpenInMemory) {
 TEST(DatabaseTest, OpenFile) {
     TempFile tmp;
     {
-        Database db(tmp.path(), static_cast<int>(OpenFlag::ReadWrite) |
-                                    static_cast<int>(OpenFlag::Create));
+        Database db(tmp.path(), OpenFlag::ReadWrite | OpenFlag::Create);
         EXPECT_TRUE(db);
     }
     // File should exist after close
@@ -57,8 +56,7 @@ TEST(DatabaseTest, MoveAssignment) {
 }
 
 TEST(DatabaseTest, CantOpen) {
-    EXPECT_THROW(Database db("/nonexistent/path/db.sqlite",
-                             static_cast<int>(OpenFlag::ReadOnly)),
+    EXPECT_THROW(Database db("/nonexistent/path/db.sqlite", OpenFlag::ReadOnly),
                  CantOpenError);
 }
 
@@ -80,7 +78,7 @@ TEST(DatabaseTest, ExecuteInsertAndQuery) {
     auto rows = db.query("SELECT * FROM t");
     ASSERT_EQ(rows.size(), 1u);
     EXPECT_EQ(rows[0][0].as_int64(), 1);
-    EXPECT_EQ(rows[0][1].as_text(), "hello");
+    EXPECT_EQ(rows[0][1].get_text(), "hello");
 }
 
 TEST(DatabaseTest, ExecuteBadSql) {
@@ -167,18 +165,18 @@ TEST(DatabaseTest, TransactionCommit) {
     EXPECT_EQ(*count, 2);
 }
 
-TEST(DatabaseTest, TransactionAutoCommit) {
+TEST(DatabaseTest, TransactionRollbackOnDrop) {
     Database db(":memory:");
     db.execute("CREATE TABLE t (id INTEGER PRIMARY KEY)");
 
     {
-        auto txn = Database::Transaction(db);
+        auto txn = db.transaction();
         db.execute("INSERT INTO t VALUES (1)");
-        // txn destroyed without explicit commit → auto-commits on clean exit
+        // txn destroyed without explicit commit -> rolls back safely
     }
 
     auto count = db.query_value<int64_t>("SELECT COUNT(*) FROM t");
-    EXPECT_EQ(*count, 1);
+    EXPECT_EQ(*count, 0);
 }
 
 TEST(DatabaseTest, TransactionRollbackOnException) {
@@ -248,7 +246,7 @@ TEST(DatabaseTest, ErrorCodeAndMessage) {
 
 TEST(DatabaseTest, BusyTimeout) {
     Database db(":memory:");
-    EXPECT_NO_THROW(db.set_busy_timeout(1000));
+    EXPECT_NO_THROW(db.set_busy_timeout(std::chrono::milliseconds{1000}));
 }
 
 // ============================================================================
@@ -263,11 +261,12 @@ TEST(DatabaseTest, ExecCallbackCollectsRows) {
 
     std::vector<std::pair<std::string, std::string>> rows;
     db.exec("SELECT id, val FROM t ORDER BY id",
-            [&](int ncols, char** values, char** names) -> bool {
-                EXPECT_EQ(ncols, 2);
-                rows.push_back(
-                    {values[0] ? values[0] : "", values[1] ? values[1] : ""});
-                (void)names;
+            [&](std::span<const std::optional<std::string_view>> values,
+                std::span<const std::string_view> names) -> bool {
+                EXPECT_EQ(values.size(), 2u);
+                EXPECT_EQ(names.size(), 2u);
+                rows.emplace_back(std::string(values[0].value_or("")),
+                                  std::string(values[1].value_or("")));
                 return true; // continue
             });
 
@@ -287,11 +286,13 @@ TEST(DatabaseTest, ExecCallbackReturnFalseStopsEarly) {
 
     int count = 0;
     // Returning false on the first row should stop iteration without throwing.
-    EXPECT_NO_THROW(db.exec("SELECT id FROM t ORDER BY id",
-                            [&](int, char**, char**) -> bool {
-                                ++count;
-                                return false; // stop after first row
-                            }));
+    EXPECT_NO_THROW(
+        db.exec("SELECT id FROM t ORDER BY id",
+                [&](std::span<const std::optional<std::string_view>>,
+                    std::span<const std::string_view>) -> bool {
+                    ++count;
+                    return false; // stop after first row
+                }));
     EXPECT_EQ(count, 1);
 }
 
@@ -301,7 +302,8 @@ TEST(DatabaseTest, ExecCallbackExceptionPropagates) {
     db.execute("INSERT INTO t VALUES (1)");
 
     EXPECT_THROW(db.exec("SELECT id FROM t",
-                         [](int, char**, char**) -> bool {
+                         [](std::span<const std::optional<std::string_view>>,
+                            std::span<const std::string_view>) -> bool {
                              throw std::runtime_error("callback error");
                          }),
                  std::runtime_error);
@@ -389,10 +391,12 @@ TEST(DatabaseTest, ExecCallbackThrowsNonStdException) {
     db.execute("INSERT INTO t VALUES (1)");
 
     class CustomException {};
-    EXPECT_THROW(
-        db.exec("SELECT id FROM t",
-                [](int, char**, char**) -> bool { throw CustomException(); }),
-        CustomException);
+    EXPECT_THROW(db.exec("SELECT id FROM t",
+                         [](std::span<const std::optional<std::string_view>>,
+                            std::span<const std::string_view>) -> bool {
+                             throw CustomException();
+                         }),
+                 CustomException);
 }
 
 // ============================================================================
@@ -401,10 +405,7 @@ TEST(DatabaseTest, ExecCallbackThrowsNonStdException) {
 
 TEST(DatabaseTest, OpenWithVfs) {
     // Open with default (nullptr) VFS — should succeed
-    Database db(":memory:",
-                static_cast<int>(OpenFlag::ReadWrite) |
-                    static_cast<int>(OpenFlag::Create),
-                "");
+    Database db(":memory:", OpenFlag::ReadWrite | OpenFlag::Create, "");
     EXPECT_TRUE(db);
     db.execute("CREATE TABLE t (x INTEGER)");
     auto rows = db.query("SELECT COUNT(*) FROM t");

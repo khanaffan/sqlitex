@@ -273,8 +273,9 @@ class InMemoryContainer final : public BcvContainer {
           http_port_(http_port) {
     }
 
-    void fetch(BcvJob& job, std::string_view file, int condition_flags,
-               const void* cond_data, int cond_size) override {
+    void fetch(BcvJob& job, std::string_view file,
+               BcvFetchConditions conditions,
+               std::span<const std::byte> cond_data) override {
         if (http_port_ != 0) {
             BcvRequest req = job.create_request([](BcvJob& j, BcvRequest& r) {
                 std::string msg;
@@ -290,20 +291,18 @@ class InMemoryContainer final : public BcvContainer {
                 if (!raw_hdrs.empty()) {
                     j.set_headers(raw_hdrs);
                 }
-                auto [ptr, len] = r.body();
-                j.set_result(ptr, len);
+                j.set_result(r.body());
             });
             std::string url = "http://127.0.0.1:" + std::to_string(http_port_) +
                               "/" + container_ + "/" + std::string(file);
             req.set_method(BcvHttpMethod::Get);
             req.set_uri(url);
             req.set_log("GET " + std::string(file));
-            if ((condition_flags & static_cast<int>(BcvFetchCondition::ETag)) !=
-                    0 &&
-                cond_data != nullptr && cond_size > 0) {
+            if (conditions.contains(BcvFetchCondition::ETag) &&
+                !cond_data.empty()) {
                 std::string hdr = "If-None-Match: ";
-                hdr.append(static_cast<const char*>(cond_data),
-                           static_cast<size_t>(cond_size));
+                hdr.append(reinterpret_cast<const char*>(cond_data.data()),
+                           cond_data.size());
                 req.set_header(hdr);
             }
             return;
@@ -320,12 +319,11 @@ class InMemoryContainer final : public BcvContainer {
             return;
         }
         job.set_etag(oit->second.etag);
-        job.set_result(oit->second.data.data(),
-                       static_cast<int>(oit->second.data.size()));
+        job.set_result(oit->second.data);
     }
 
-    void put(BcvJob& job, std::string_view file, const uint8_t* data, int size,
-             std::string_view etag) override {
+    void put(BcvJob& job, std::string_view file,
+             std::span<const std::byte> data, std::string_view etag) override {
         if (http_port_ != 0) {
             BcvRequest req = job.create_request([](BcvJob& j, BcvRequest& r) {
                 std::string msg;
@@ -347,7 +345,7 @@ class InMemoryContainer final : public BcvContainer {
             if (!etag.empty()) {
                 req.set_header("If-Match: " + std::string(etag));
             }
-            req.set_body(data, size);
+            req.set_body(data);
             return;
         }
         std::lock_guard<std::mutex> lock(store_->mu);
@@ -365,8 +363,9 @@ class InMemoryContainer final : public BcvContainer {
             }
         }
         StoredObject obj;
-        if (data != nullptr && size > 0) {
-            obj.data.assign(data, data + size);
+        if (!data.empty()) {
+            const auto* bytes = reinterpret_cast<const uint8_t*>(data.data());
+            obj.data.assign(bytes, bytes + data.size());
         }
         obj.etag = "etag-" + std::to_string(store_->next_etag++);
         std::string saved_etag = obj.etag;
@@ -445,7 +444,7 @@ TEST(CloudSqliteOfflineTest, ModuleBcvClientBcvfsAndPrefetchEndToEnd) {
     register_bcv_module(
         "inmemtest",
         [store, port, &seen_param_val](
-            const std::vector<std::pair<std::string_view, std::string_view>>&
+            std::span<const std::pair<std::string_view, std::string_view>>
                 params,
             std::string_view /*user*/, std::string_view /*auth*/,
             std::string_view container) -> std::unique_ptr<BcvContainer> {
@@ -508,7 +507,7 @@ TEST(CloudSqliteOfflineTest, ModuleBcvClientBcvfsAndPrefetchEndToEnd) {
         }
 
         client.remove("notes_copy.db");
-        client.cleanup(0);
+        client.cleanup(std::chrono::seconds{0});
         EXPECT_EQ(client.errcode(), SQLITE_OK);
 
         // Downloading a missing DB throws Error and records errcode/errmsg
@@ -543,12 +542,11 @@ TEST(CloudSqliteOfflineTest, ModuleBcvClientBcvfsAndPrefetchEndToEnd) {
         });
 
         bcvfs.set_masked_log_callback(
-            [](int /*mask*/, std::string_view /*msg*/) {},
-            static_cast<int>(BcvfsLogFlag::Http) |
-                static_cast<int>(BcvfsLogFlag::Event));
+            [](BcvfsLogFlags /*mask*/, std::string_view /*msg*/) {},
+            BcvfsLogFlag::Http | BcvfsLogFlag::Event);
 
         bcvfs.attach("inmemtest", "testuser", "bucket1", "bk",
-                     static_cast<int>(BcvfsAttachFlag::None));
+                     BcvfsAttachFlag::None);
 
         // Prefetch notes.db via PrefetchHandle
         {

@@ -218,6 +218,22 @@ int64_t Session::changeset_size() const noexcept {
     return sqlite3session_changeset_size(session_);
 }
 
+bool Session::set_object_config(SessionObjectConfig op, bool enable) {
+    int val = enable ? 1 : 0;
+    throw_on_error(
+        sqlite3session_object_config(session_, static_cast<int>(op), &val),
+        db_->handle());
+    return val != 0;
+}
+
+bool Session::get_object_config(SessionObjectConfig op) const {
+    int val = -1;
+    throw_on_error(
+        sqlite3session_object_config(session_, static_cast<int>(op), &val),
+        db_->handle());
+    return val != 0;
+}
+
 void Session::set_object_config(int op, void* arg) {
     throw_on_error(sqlite3session_object_config(session_, op, arg),
                    db_->handle());

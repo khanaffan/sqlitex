@@ -83,8 +83,8 @@ void IndexInfo::set_estimated_rows(int64_t rows) {
     info_->estimatedRows = rows;
 }
 
-void IndexInfo::set_idx_flags(int flags) noexcept {
-    info_->idxFlags = flags;
+void IndexInfo::set_idx_flags(IndexScanFlags flags) noexcept {
+    info_->idxFlags = flags.raw();
 }
 
 std::string_view IndexInfo::collation(int constraint_index) const noexcept {
@@ -92,8 +92,8 @@ std::string_view IndexInfo::collation(int constraint_index) const noexcept {
     return name ? std::string_view(name) : std::string_view{};
 }
 
-int IndexInfo::distinct() const noexcept {
-    return sqlite3_vtab_distinct(info_);
+DistinctMode IndexInfo::distinct() const noexcept {
+    return static_cast<DistinctMode>(sqlite3_vtab_distinct(info_));
 }
 
 bool IndexInfo::set_in(int constraint_index, int handle_mode) noexcept {
@@ -149,7 +149,7 @@ std::vector<Value> VtabInIterator::collect(sqlite3_value* in_list) {
 }
 
 int Cursor::filter_raw(int idx_num, const char* idx_str,
-                       const std::vector<ValueRef>& argv) {
+                       std::span<const ValueRef> argv) {
     std::vector<Value> owned;
     owned.reserve(argv.size());
     for (const auto& ref : argv) {
@@ -170,8 +170,8 @@ int VirtualTable::vtab_config(sqlite3* db, VtabConfig op, int val) {
     return sqlite3_vtab_config(db, static_cast<int>(op));
 }
 
-int VirtualTable::vtab_on_conflict(sqlite3* db) noexcept {
-    return sqlite3_vtab_on_conflict(db);
+ConflictResolution VirtualTable::vtab_on_conflict(sqlite3* db) noexcept {
+    return static_cast<ConflictResolution>(sqlite3_vtab_on_conflict(db));
 }
 
 // ============================================================================
@@ -273,7 +273,13 @@ static int xCreate_shim(sqlite3* db, void* pAux, int argc,
             return SQLITE_ERROR;
         }
 
-        int rc = impl->create(db, argc, argv);
+        std::vector<std::string_view> arg_views;
+        arg_views.reserve(argc > 0 ? static_cast<std::size_t>(argc) : 0);
+        for (int i = 0; i < argc; ++i) {
+            arg_views.emplace_back(argv[i] ? argv[i] : "");
+        }
+
+        int rc = impl->create(db, arg_views);
         if (rc != SQLITE_OK) {
             return rc;
         }
@@ -309,7 +315,13 @@ static int xConnect_shim(sqlite3* db, void* pAux, int argc,
             return SQLITE_ERROR;
         }
 
-        int rc = impl->connect(db, argc, argv);
+        std::vector<std::string_view> arg_views;
+        arg_views.reserve(argc > 0 ? static_cast<std::size_t>(argc) : 0);
+        for (int i = 0; i < argc; ++i) {
+            arg_views.emplace_back(argv[i] ? argv[i] : "");
+        }
+
+        int rc = impl->connect(db, arg_views);
         if (rc != SQLITE_OK) {
             return rc;
         }
@@ -446,11 +458,6 @@ static int xRowid_shim(sqlite3_vtab_cursor* cur, sqlite3_int64* p_rowid) {
 static int xUpdate_shim(sqlite3_vtab* vtab, int argc, sqlite3_value** argv,
                         sqlite3_int64* p_rowid) {
     try {
-        // Convert argv to typed Value vector so VirtualTable::update() does
-        // not need to handle raw sqlite3_value**.
-        // argv[0] = old rowid (or NULL for INSERT)
-        // argv[1] = new rowid / NULL
-        // argv[2..] = new column values
         std::vector<sqlitex::Value> args;
         args.reserve(static_cast<std::size_t>(argc));
         for (int i = 0; i < argc; ++i) {
@@ -458,7 +465,7 @@ static int xUpdate_shim(sqlite3_vtab* vtab, int argc, sqlite3_value** argv,
                                    : sqlitex::Value{});
         }
         return sqlitex::detail::from_vtab(vtab)->impl->update(
-            argc, args, reinterpret_cast<int64_t*>(p_rowid));
+            args, reinterpret_cast<int64_t*>(p_rowid));
     } catch (...) {
         return SQLITE_ERROR;
     }
@@ -510,7 +517,8 @@ static int xFindFunction_shim(sqlite3_vtab* vtab, int n_arg, const char* z_name,
 
 static int xRename_shim(sqlite3_vtab* vtab, const char* z_new) {
     try {
-        return sqlitex::detail::from_vtab(vtab)->impl->rename(z_new);
+        return sqlitex::detail::from_vtab(vtab)->impl->rename(
+            z_new ? std::string_view(z_new) : std::string_view{});
     } catch (...) {
         return SQLITE_ERROR;
     }
@@ -518,7 +526,8 @@ static int xRename_shim(sqlite3_vtab* vtab, const char* z_new) {
 
 static int xSavepoint_shim(sqlite3_vtab* vtab, int savepoint) {
     try {
-        return sqlitex::detail::from_vtab(vtab)->impl->savepoint(0, savepoint);
+        return sqlitex::detail::from_vtab(vtab)->impl->savepoint(
+            sqlitex::SavepointOp::Begin, savepoint);
     } catch (...) {
         return SQLITE_ERROR;
     }
@@ -526,7 +535,8 @@ static int xSavepoint_shim(sqlite3_vtab* vtab, int savepoint) {
 
 static int xRelease_shim(sqlite3_vtab* vtab, int savepoint) {
     try {
-        return sqlitex::detail::from_vtab(vtab)->impl->savepoint(1, savepoint);
+        return sqlitex::detail::from_vtab(vtab)->impl->savepoint(
+            sqlitex::SavepointOp::Release, savepoint);
     } catch (...) {
         return SQLITE_ERROR;
     }
@@ -534,7 +544,8 @@ static int xRelease_shim(sqlite3_vtab* vtab, int savepoint) {
 
 static int xRollbackTo_shim(sqlite3_vtab* vtab, int savepoint) {
     try {
-        return sqlitex::detail::from_vtab(vtab)->impl->savepoint(2, savepoint);
+        return sqlitex::detail::from_vtab(vtab)->impl->savepoint(
+            sqlitex::SavepointOp::Rollback, savepoint);
     } catch (...) {
         return SQLITE_ERROR;
     }
@@ -582,10 +593,7 @@ static sqlite3_module make_module() {
 
 ModuleRegistration create_module_impl(
     sqlite3* db, std::string_view name,
-    std::function<std::unique_ptr<VirtualTable>()> factory, int flags) {
-    // sqlite3_create_module_v2 does not accept a flags parameter.
-    // SQLITE_VTAB_INNOCUOUS must be set on the xConnect method instead.
-    (void)flags;
+    std::function<std::unique_ptr<VirtualTable>()> factory) {
     auto mod_ctx = std::make_shared<detail::ModuleCtx>();
     mod_ctx->module = detail::make_module();
     mod_ctx->factory = std::move(factory);

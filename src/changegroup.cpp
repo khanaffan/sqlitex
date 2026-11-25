@@ -92,18 +92,112 @@ void Changegroup::set_schema(Database& db, std::string_view db_name) {
 }
 
 // ============================================================================
+// ChangeBuilder (RAII programmatic change construction)
+// ============================================================================
+
+Changegroup::ChangeBuilder::~ChangeBuilder() {
+    if (group_ != nullptr) {
+        try {
+            group_->change_finish(true);
+        } catch (...) {
+        }
+    }
+}
+
+Changegroup::ChangeBuilder::ChangeBuilder(ChangeBuilder&& other) noexcept
+    : group_(std::exchange(other.group_, nullptr)) {
+}
+
+Changegroup::ChangeBuilder& Changegroup::ChangeBuilder::operator=(
+    ChangeBuilder&& other) noexcept {
+    if (this != &other) {
+        if (group_ != nullptr) {
+            try {
+                group_->change_finish(true);
+            } catch (...) {
+            }
+        }
+        group_ = std::exchange(other.group_, nullptr);
+    }
+    return *this;
+}
+
+Changegroup::ChangeBuilder& Changegroup::ChangeBuilder::set_null(ChangeRow row,
+                                                                 int col) {
+    group_->change_null(row, col);
+    return *this;
+}
+
+Changegroup::ChangeBuilder& Changegroup::ChangeBuilder::set_int(ChangeRow row,
+                                                                int col,
+                                                                int64_t val) {
+    group_->change_int64(row, col, val);
+    return *this;
+}
+
+Changegroup::ChangeBuilder& Changegroup::ChangeBuilder::set_double(
+    ChangeRow row, int col, double val) {
+    group_->change_double(row, col, val);
+    return *this;
+}
+
+Changegroup::ChangeBuilder& Changegroup::ChangeBuilder::set_text(
+    ChangeRow row, int col, std::string_view val) {
+    group_->change_text(row, col, val);
+    return *this;
+}
+
+Changegroup::ChangeBuilder& Changegroup::ChangeBuilder::set_blob(
+    ChangeRow row, int col, std::span<const std::byte> data) {
+    group_->change_blob(row, col, data);
+    return *this;
+}
+
+Changegroup::ChangeBuilder& Changegroup::ChangeBuilder::set(ChangeRow row,
+                                                            int col,
+                                                            const Value& val) {
+    switch (val.type()) {
+    case Value::Type::Null:
+        return set_null(row, col);
+    case Value::Type::Integer:
+        return set_int(row, col, val.get_int());
+    case Value::Type::Float:
+        return set_double(row, col, val.get_double());
+    case Value::Type::Text:
+        return set_text(row, col, val.get_text());
+    case Value::Type::Blob:
+        return set_blob(row, col, val.as_bytes());
+    }
+    return *this;
+}
+
+void Changegroup::ChangeBuilder::commit() {
+    if (group_ != nullptr) {
+        Changegroup* g = std::exchange(group_, nullptr);
+        g->change_finish(false);
+    }
+}
+
+void Changegroup::ChangeBuilder::discard() {
+    if (group_ != nullptr) {
+        Changegroup* g = std::exchange(group_, nullptr);
+        g->change_finish(true);
+    }
+}
+
+// ============================================================================
 // Operations
 // ============================================================================
 
 void Changegroup::add(const Changeset& cs) {
-    int const rc =
-        sqlite3changegroup_add(group_, cs.size(), const_cast<void*>(cs.data()));
+    int const rc = sqlite3changegroup_add(group_, static_cast<int>(cs.size()),
+                                          const_cast<void*>(cs.data()));
     throw_on_error(rc, "sqlite3changegroup_add failed");
 }
 
 void Changegroup::add(const Patchset& ps) {
-    int const rc =
-        sqlite3changegroup_add(group_, ps.size(), const_cast<void*>(ps.data()));
+    int const rc = sqlite3changegroup_add(group_, static_cast<int>(ps.size()),
+                                          const_cast<void*>(ps.data()));
     throw_on_error(rc, "sqlite3changegroup_add failed");
 }
 
@@ -116,6 +210,13 @@ void Changegroup::add_change(const ChangesetIterator& iter) {
 // Programmatic Change Construction
 // ============================================================================
 
+Changegroup::ChangeBuilder Changegroup::begin_change(ChangeOperation op,
+                                                     std::string_view table,
+                                                     bool indirect) {
+    change_begin(op, table, indirect);
+    return ChangeBuilder(this);
+}
+
 void Changegroup::change_begin(ChangeOperation op, std::string_view table,
                                bool indirect) {
     std::string tbl(table);
@@ -125,37 +226,38 @@ void Changegroup::change_begin(ChangeOperation op, std::string_view table,
     throw_with_errmsg(rc, err_msg, "sqlite3changegroup_change_begin failed");
 }
 
-void Changegroup::change_int64(bool is_new, int col, int64_t val) {
-    int const rc =
-        sqlite3changegroup_change_int64(group_, is_new ? 1 : 0, col, val);
+void Changegroup::change_int64(ChangeRow row, int col, int64_t val) {
+    int const rc = sqlite3changegroup_change_int64(
+        group_, static_cast<int>(row), col, val);
     throw_on_error(rc, "sqlite3changegroup_change_int64 failed");
 }
 
-void Changegroup::change_double(bool is_new, int col, double val) {
-    int const rc =
-        sqlite3changegroup_change_double(group_, is_new ? 1 : 0, col, val);
+void Changegroup::change_double(ChangeRow row, int col, double val) {
+    int const rc = sqlite3changegroup_change_double(
+        group_, static_cast<int>(row), col, val);
     throw_on_error(rc, "sqlite3changegroup_change_double failed");
 }
 
-void Changegroup::change_null(bool is_new, int col) {
-    int const rc = sqlite3changegroup_change_null(group_, is_new ? 1 : 0, col);
+void Changegroup::change_null(ChangeRow row, int col) {
+    int const rc =
+        sqlite3changegroup_change_null(group_, static_cast<int>(row), col);
     throw_on_error(rc, "sqlite3changegroup_change_null failed");
 }
 
-void Changegroup::change_text(bool is_new, int col, std::string_view val) {
-    int const rc = sqlite3changegroup_change_text(group_, is_new ? 1 : 0, col,
-                                                  val.empty() ? "" : val.data(),
-                                                  static_cast<int>(val.size()));
+void Changegroup::change_text(ChangeRow row, int col, std::string_view val) {
+    int const rc = sqlite3changegroup_change_text(
+        group_, static_cast<int>(row), col, val.empty() ? "" : val.data(),
+        static_cast<int>(val.size()));
     throw_on_error(rc, "sqlite3changegroup_change_text failed");
 }
 
-void Changegroup::change_blob(bool is_new, int col, const void* data,
-                              int size) {
+void Changegroup::change_blob(ChangeRow row, int col,
+                              std::span<const std::byte> data) {
     static const uint8_t kEmpty = 0;
-    const void* ptr =
-        (data != nullptr) ? data : static_cast<const void*>(&kEmpty);
-    int const rc =
-        sqlite3changegroup_change_blob(group_, is_new ? 1 : 0, col, ptr, size);
+    const void* ptr = !data.empty() ? static_cast<const void*>(data.data())
+                                    : static_cast<const void*>(&kEmpty);
+    int const rc = sqlite3changegroup_change_blob(
+        group_, static_cast<int>(row), col, ptr, static_cast<int>(data.size()));
     throw_on_error(rc, "sqlite3changegroup_change_blob failed");
 }
 

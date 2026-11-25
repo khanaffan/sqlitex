@@ -64,7 +64,7 @@ TEST(StatementAdvancedTest, ZeroblobStaticBind64AndClearBindings) {
     const uint8_t blob_bytes[] = {1, 2, 3, 4, 5};
     stmt.bind_zeroblob(1, 16)
         .bind_static(2, std::string_view(kStaticText))
-        .bind_blob64(3, blob_bytes, sizeof(blob_bytes));
+        .bind_blob64(3, std::as_bytes(std::span{blob_bytes}));
     ASSERT_TRUE(stmt.step());
     EXPECT_EQ(stmt.data_count(), 3);
     EXPECT_EQ(stmt.column_int(0), 16);
@@ -87,7 +87,7 @@ TEST(StatementAdvancedTest, ColumnOriginMetadataAndNormalizedSql) {
     std::string_view tail;
     auto stmt = db.prepare_v3(
         "SELECT uid, uname AS alias_name FROM users WHERE uid = ?1; SELECT 2;",
-        static_cast<PrepareFlags>(PrepareFlag::Persistent), &tail);
+        PrepareFlag::Persistent, &tail);
     EXPECT_EQ(tail, " SELECT 2;");
 
     EXPECT_TRUE(stmt.is_readonly());
@@ -111,11 +111,11 @@ TEST(StatementAdvancedTest, ColumnOriginMetadataAndNormalizedSql) {
     // ValueRef + ProtectedValue via column_raw_value
     ValueRef raw = stmt.column_raw_value(1);
     ASSERT_TRUE(raw);
-    EXPECT_EQ(raw.type(), SQLITE3_TEXT);
+    EXPECT_EQ(raw.type(), Value::Type::Text);
     EXPECT_EQ(raw.as_text(), "Alice");
     ProtectedValue dup = raw.dup();
     ASSERT_TRUE(dup);
-    EXPECT_EQ(dup.to_value().as_text(), "Alice");
+    EXPECT_EQ(dup.to_value().get_text(), "Alice");
 
     // Step to completion & check status / scanstatus
     EXPECT_FALSE(stmt.step());
@@ -147,10 +147,10 @@ TEST(FunctionAdvancedTest, PointerPassingSubtypeAndAuxdata) {
     // Function reading a bound opaque pointer
     db.create_raw_function(
         "read_ptr", 1,
-        [](FunctionContext& ctx, const std::vector<ValueRef>& args) {
+        [](FunctionContext& ctx, std::span<const ValueRef> args) {
             ASSERT_EQ(args.size(), 1U);
             EXPECT_TRUE(args[0].from_bind());
-            auto* p = static_cast<int*>(args[0].pointer("my_int_ptr"));
+            auto* p = args[0].pointer_as<int>("my_int_ptr");
             if (p == nullptr) {
                 ctx.set_result();
             } else {
@@ -161,7 +161,7 @@ TEST(FunctionAdvancedTest, PointerPassingSubtypeAndAuxdata) {
     // Wrong type returns NULL
     db.create_raw_function(
         "read_wrong_ptr", 1,
-        [](FunctionContext& ctx, const std::vector<ValueRef>& args) {
+        [](FunctionContext& ctx, std::span<const ValueRef> args) {
             auto* p = args[0].pointer("other_type");
             ctx.set_result(p == nullptr ? 0 : 1);
         });
@@ -179,18 +179,17 @@ TEST(FunctionAdvancedTest, PointerPassingSubtypeAndAuxdata) {
     }
     EXPECT_EQ(ptr_destroyed.load(), 1);
 
-    // Subtype propagation (SQLITE_RESULT_SUBTYPE)
+    // Subtype propagation (FunctionFlag::ResultSubtype)
     db.create_raw_function(
         "tag_sub", 1,
-        [](FunctionContext& ctx, const std::vector<ValueRef>& args) {
+        [](FunctionContext& ctx, std::span<const ValueRef> args) {
             ctx.set_result_value(args[0]);
             ctx.set_subtype('J');
         },
-        SQLITE_UTF8 | SQLITE_RESULT_SUBTYPE);
+        FunctionFlag::Utf8 | FunctionFlag::ResultSubtype);
 
     db.create_raw_function(
-        "get_sub", 1,
-        [](FunctionContext& ctx, const std::vector<ValueRef>& args) {
+        "get_sub", 1, [](FunctionContext& ctx, std::span<const ValueRef> args) {
             ctx.set_result(static_cast<int64_t>(args[0].subtype()));
         });
 
@@ -204,9 +203,8 @@ TEST(FunctionAdvancedTest, PointerPassingSubtypeAndAuxdata) {
     aux_destroyed.store(0);
 
     db.create_raw_function(
-        "aux_mul", 2,
-        [](FunctionContext& ctx, const std::vector<ValueRef>& args) {
-            auto* factor = static_cast<int*>(ctx.get_auxdata(0));
+        "aux_mul", 2, [](FunctionContext& ctx, std::span<const ValueRef> args) {
+            auto* factor = ctx.get_auxdata_as<int>(0);
             if (factor == nullptr) {
                 factor = new int(args[0].as_int() * 10);
                 aux_computes.fetch_add(1);
@@ -227,16 +225,16 @@ TEST(FunctionAdvancedTest, PointerPassingSubtypeAndAuxdata) {
     EXPECT_EQ(aux_destroyed.load(), 1);
 
     // Error code helper & zeroblob result
-    db.create_raw_function(
-        "fail_code", 0, [](FunctionContext& ctx, const std::vector<ValueRef>&) {
-            ctx.set_error("custom fail");
-            ctx.set_error_code(SQLITE_CONSTRAINT);
-        });
-    EXPECT_THROW(db.query("SELECT fail_code();"), Error);
+    db.create_raw_function("fail_code", 0,
+                           [](FunctionContext& ctx, std::span<const ValueRef>) {
+                               ctx.set_error("custom fail");
+                               ctx.set_error_code(ErrorCode::Constraint);
+                           });
+    EXPECT_THROW((void)db.query("SELECT fail_code();"), Error);
 
     db.create_raw_function(
         "make_zblob", 1,
-        [](FunctionContext& ctx, const std::vector<ValueRef>& args) {
+        [](FunctionContext& ctx, std::span<const ValueRef> args) {
             ctx.set_result_zeroblob(args[0].as_int());
         });
     EXPECT_EQ(db.query_value<int64_t>("SELECT length(make_zblob(32));"), 32);
@@ -257,7 +255,7 @@ class InListVTab final : public VirtualTable {
         }
 
         int filter_raw(int idx_num, const char* /*idx_str*/,
-                       const std::vector<ValueRef>& argv) override {
+                       std::span<const ValueRef> argv) override {
             rows_.clear();
             pos_ = 0;
             if (idx_num == 1 && !argv.empty()) {
@@ -277,7 +275,7 @@ class InListVTab final : public VirtualTable {
         }
 
         int filter(int /*idx_num*/, const char* /*idx_str*/,
-                   const std::vector<Value>& /*argv*/) override {
+                   std::span<const Value> /*argv*/) override {
             return SQLITE_OK;
         }
 
@@ -304,8 +302,8 @@ class InListVTab final : public VirtualTable {
         std::size_t pos_ = 0;
     };
 
-    int create(sqlite3* db, int /*argc*/,
-               const char* const* /*argv*/) override {
+    int create(sqlite3* db,
+               std::span<const std::string_view> /*argv*/) override {
         vtab_config(db, VtabConfig::Innocuous);
         return declare_vtab(db, "CREATE TABLE x(val INTEGER)");
     }
@@ -317,7 +315,7 @@ class InListVTab final : public VirtualTable {
 
         for (int i = 0; i < info.num_constraints(); ++i) {
             auto c = info.constraint(i);
-            if (c.usable && c.column == 0 && c.op == IndexInfo::Eq) {
+            if (c.usable && c.column == 0 && c.op == IndexInfo::Op::Eq) {
                 (void)info.collation(i);
                 (void)info.rhs_value(i);
                 if (info.set_in(i, 1)) {

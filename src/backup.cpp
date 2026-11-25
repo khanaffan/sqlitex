@@ -43,28 +43,59 @@ Backup& Backup::operator=(Backup&& other) noexcept {
     return *this;
 }
 
-int Backup::step_raw(int pages) {
+Expected<BackupStepResult> Backup::try_step(int pages) {
+    if (backup_ == nullptr) {
+        return std::unexpected(
+            Error(ErrorCode::Misuse,
+                  "Backup::step() called on a finished or null Backup"));
+    }
+    int rc = sqlite3_backup_step(backup_, pages);
+    switch (rc) {
+    case SQLITE_OK:
+        return BackupStepResult::More;
+    case SQLITE_DONE:
+        return BackupStepResult::Done;
+    case SQLITE_BUSY:
+        return BackupStepResult::Busy;
+    case SQLITE_LOCKED:
+        return BackupStepResult::Locked;
+    default:
+        return std::unexpected(
+            make_sqlite_error(rc, dest_ ? dest_->handle() : nullptr));
+    }
+}
+
+BackupStepResult Backup::step_nonblocking(int pages) {
     if (backup_ == nullptr) {
         throw MisuseError(ErrorCode::Misuse,
                           "Backup::step() called on a finished or null Backup");
     }
     int rc = sqlite3_backup_step(backup_, pages);
-    if (rc == SQLITE_OK || rc == SQLITE_DONE || rc == SQLITE_BUSY ||
-        rc == SQLITE_LOCKED) {
-        return rc;
+    switch (rc) {
+    case SQLITE_OK:
+        return BackupStepResult::More;
+    case SQLITE_DONE:
+        return BackupStepResult::Done;
+    case SQLITE_BUSY:
+        return BackupStepResult::Busy;
+    case SQLITE_LOCKED:
+        return BackupStepResult::Locked;
+    default:
+        throw_sqlite_error(rc, dest_ ? dest_->handle() : nullptr);
     }
-    throw_sqlite_error(rc, dest_ ? dest_->handle() : nullptr);
 }
 
 bool Backup::step(int pages) {
-    int rc = step_raw(pages);
-    if (rc == SQLITE_DONE) {
+    auto res = step_nonblocking(pages);
+    if (res == BackupStepResult::Done) {
         return true;
     }
-    if (rc == SQLITE_OK) {
+    if (res == BackupStepResult::More) {
         return false;
     }
-    throw_sqlite_error(rc, dest_ ? dest_->handle() : nullptr);
+    throw_sqlite_error(
+        res == BackupStepResult::Busy ? SQLITE_BUSY : SQLITE_LOCKED,
+        dest_ ? dest_->handle() : nullptr);
 }
 
 void Backup::finish() {
@@ -89,18 +120,18 @@ int Backup::pagecount() const noexcept {
 void Backup::run(int pages_per_step,
                  std::function<void(int remaining, int pagecount)> progress,
                  std::chrono::milliseconds sleep_on_busy) {
-    int rc = SQLITE_OK;
+    BackupStepResult res = BackupStepResult::More;
     do {
-        rc = step_raw(pages_per_step);
+        res = step_nonblocking(pages_per_step);
         if (progress) {
             progress(remaining(), pagecount());
         }
-        if (rc == SQLITE_BUSY || rc == SQLITE_LOCKED) {
+        if (res == BackupStepResult::Busy || res == BackupStepResult::Locked) {
             if (sleep_on_busy.count() > 0) {
                 std::this_thread::sleep_for(sleep_on_busy);
             }
         }
-    } while (rc == SQLITE_OK || rc == SQLITE_BUSY || rc == SQLITE_LOCKED);
+    } while (res != BackupStepResult::Done);
 
     finish();
 }

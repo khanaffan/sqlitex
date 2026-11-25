@@ -36,21 +36,18 @@ Rebaser& Rebaser::operator=(Rebaser&& other) noexcept {
     return *this;
 }
 
-void Rebaser::configure(const void* data, int size) {
-    int const rc = sqlite3rebaser_configure(rebaser_, size, data);
+void Rebaser::configure(std::span<const std::byte> rebase_data) {
+    int const rc = sqlite3rebaser_configure(
+        rebaser_, static_cast<int>(rebase_data.size()),
+        rebase_data.empty() ? nullptr : rebase_data.data());
     throw_on_error(rc, "sqlite3rebaser_configure failed");
-}
-
-void Rebaser::configure(const std::vector<uint8_t>& rebase_data) {
-    configure(rebase_data.empty() ? nullptr : rebase_data.data(),
-              static_cast<int>(rebase_data.size()));
 }
 
 Changeset Rebaser::rebase(const Changeset& cs) {
     void* out = nullptr;
     int n_out = 0;
-    int const rc =
-        sqlite3rebaser_rebase(rebaser_, cs.size(), cs.data(), &n_out, &out);
+    int const rc = sqlite3rebaser_rebase(rebaser_, static_cast<int>(cs.size()),
+                                         cs.data(), &n_out, &out);
     throw_on_error(rc, "sqlite3rebaser_rebase failed");
     return {out, n_out};
 }

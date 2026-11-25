@@ -2,16 +2,19 @@
 
 #include "sqlitex_export.h"
 
+#include "sqlitex/concepts.h"
 #include "sqlitex/error.h"
+#include "sqlitex/flags.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
-#include <vector>
 
 struct sqlite3_bcv_container;
 struct sqlite3_bcv_request;
@@ -36,6 +39,11 @@ enum class BcvFetchCondition : int {
     ETag = 0x02, // BCV_MODULE_CONDITION_ETAG
 };
 
+template <>
+struct EnableBitmaskOperators<BcvFetchCondition> : std::true_type {};
+
+using BcvFetchConditions = Flags<BcvFetchCondition>;
+
 // ============================================================================
 // BcvRequest — non-owning wrapper for sqlite3_bcv_request*
 // ============================================================================
@@ -49,7 +57,7 @@ class SQLITEX_EXPORT BcvRequest {
         return req_ != nullptr;
     }
 
-    sqlite3_bcv_request* handle() noexcept {
+    [[nodiscard]] sqlite3_bcv_request* handle() noexcept {
         return req_;
     }
 
@@ -59,22 +67,31 @@ class SQLITEX_EXPORT BcvRequest {
     void set_uri(std::string_view uri);
     void set_log(std::string_view log_text);
     void set_header(std::string_view header);
-    void set_body(const uint8_t* data, int size);
+    void set_body(std::span<const std::byte> data);
+
+    template <ConstByteRange R>
+        requires(
+            !std::same_as<std::remove_cvref_t<R>, std::span<const std::byte>>)
+    void set_body(const R& data) {
+        set_body(to_const_bytes(data));
+    }
+
     void set_body(std::string_view data);
 
     // === Reply inspection (inside reply callback) ===
 
     /// Return SQLITE_OK on 2xx, or SQLite/HTTP status code (400..599).
-    int status(std::string* status_msg = nullptr) const;
+    [[nodiscard]] int status(std::string* status_msg = nullptr) const;
 
     /// Look up a response header value (case-insensitive name).
-    std::optional<std::string_view> header(std::string_view name) const;
+    [[nodiscard]] std::optional<std::string_view> header(
+        std::string_view name) const;
 
     /// Raw response headers buffer.
-    std::string_view raw_headers() const;
+    [[nodiscard]] std::string_view raw_headers() const;
 
-    /// Response body pointer and byte length.
-    std::pair<const uint8_t*, int> body() const;
+    /// Response body bytes.
+    [[nodiscard]] std::span<const std::byte> body() const;
 
     private:
     sqlite3_bcv_request* req_ = nullptr;
@@ -95,15 +112,23 @@ class SQLITEX_EXPORT BcvJob {
         return job_ != nullptr;
     }
 
-    sqlite3_bcv_job* handle() noexcept {
+    [[nodiscard]] sqlite3_bcv_job* handle() noexcept {
         return job_;
     }
 
     /// Create an asynchronous HTTP(S) request tied to this job.
-    BcvRequest create_request(ReplyCallback on_reply);
+    [[nodiscard]] BcvRequest create_request(ReplyCallback on_reply);
 
     /// Return object data (for fetch jobs).
-    void set_result(const uint8_t* data, int size);
+    void set_result(std::span<const std::byte> data);
+
+    template <ConstByteRange R>
+        requires(
+            !std::same_as<std::remove_cvref_t<R>, std::span<const std::byte>>)
+    void set_result(const R& data) {
+        set_result(to_const_bytes(data));
+    }
+
     void set_result(std::string_view data);
 
     /// Append a nul-terminated entry name (for list jobs; passes n = -1 as
@@ -111,7 +136,15 @@ class SQLITEX_EXPORT BcvJob {
     void add_list_entry(std::string_view entry);
 
     /// Supply response headers associated with a fetch result.
-    void set_headers(const uint8_t* data, int size);
+    void set_headers(std::span<const std::byte> data);
+
+    template <ConstByteRange R>
+        requires(
+            !std::same_as<std::remove_cvref_t<R>, std::span<const std::byte>>)
+    void set_headers(const R& data) {
+        set_headers(to_const_bytes(data));
+    }
+
     void set_headers(std::string_view data);
 
     /// Supply the object ETag (for fetch/put).
@@ -121,7 +154,7 @@ class SQLITEX_EXPORT BcvJob {
     void set_error(int code, std::string_view message = {});
 
     /// Return the prefix filter for list jobs (empty if none).
-    std::string_view prefix() const;
+    [[nodiscard]] std::string_view prefix() const;
 
     private:
     sqlite3_bcv_job* job_ = nullptr;
@@ -135,11 +168,13 @@ class SQLITEX_EXPORT BcvContainer {
     public:
     virtual ~BcvContainer() = default;
 
-    virtual void fetch(BcvJob& job, std::string_view file, int condition_flags,
-                       const void* cond_data, int cond_size) = 0;
+    virtual void fetch(BcvJob& job, std::string_view file,
+                       BcvFetchConditions conditions,
+                       std::span<const std::byte> cond_data) = 0;
 
-    virtual void put(BcvJob& job, std::string_view file, const uint8_t* data,
-                     int size, std::string_view etag) = 0;
+    virtual void put(BcvJob& job, std::string_view file,
+                     std::span<const std::byte> data,
+                     std::string_view etag) = 0;
 
     virtual void remove(BcvJob& job, std::string_view file,
                         std::string_view etag) = 0;
@@ -153,7 +188,7 @@ class SQLITEX_EXPORT BcvContainer {
 
 /// Factory creating a custom cloud storage container instance.
 using BcvModuleFactory = std::function<std::unique_ptr<BcvContainer>(
-    const std::vector<std::pair<std::string_view, std::string_view>>& params,
+    std::span<const std::pair<std::string_view, std::string_view>> params,
     std::string_view user, std::string_view auth, std::string_view container)>;
 
 /// Register a custom cloud storage module (sqlite3_bcv_create_module).

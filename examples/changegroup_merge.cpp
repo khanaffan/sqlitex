@@ -70,9 +70,9 @@ int main() {
             std::cout << "Target after merged apply:\n";
             for (const auto& row :
                  target.query("SELECT * FROM employees ORDER BY id")) {
-                std::cout << "  " << row[0].as_int64() << ": "
-                          << row[1].as_text() << " (" << row[2].as_text()
-                          << ") $" << row[3].as_double() << '\n';
+                std::cout << "  " << row[0].get_int() << ": "
+                          << row[1].get_text() << " (" << row[2].get_text()
+                          << ") $" << row[3].get_double() << '\n';
             }
         }
 

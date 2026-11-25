@@ -34,9 +34,9 @@ TEST(RTreeExtensionTest, GeometryAndQueryCallbacks) {
         // 1st-generation geometry callback: circle(cx, cy, r)
         register_rtree_geometry_callback(
             db, "circle",
-            [](const double* params, int n_params, const double* coords,
-               int n_coords) -> bool {
-                if (n_params != 3 || n_coords != 4) {
+            [](std::span<const double> params,
+               std::span<const double> coords) -> bool {
+                if (params.size() != 3 || coords.size() != 4) {
                     return false;
                 }
                 double cx = params[0];
@@ -97,7 +97,7 @@ class WhitespaceLowerTokenizer final : public Fts5Tokenizer {
         : prefix_(std::move(prefix)) {
     }
 
-    int tokenize(int /*flags*/, std::string_view text,
+    int tokenize(Fts5TokenizeFlags /*flags*/, std::string_view text,
                  std::string_view /*locale*/,
                  const Fts5TokenEmit& emit) override {
         size_t i = 0;
@@ -117,8 +117,8 @@ class WhitespaceLowerTokenizer final : public Fts5Tokenizer {
                     tok.push_back(static_cast<char>(
                         std::tolower(static_cast<unsigned char>(text[k]))));
                 }
-                int rc =
-                    emit(0, tok, static_cast<int>(start), static_cast<int>(i));
+                int rc = emit(Fts5TokenFlags{}, tok, static_cast<int>(start),
+                              static_cast<int>(i));
                 if (rc != 0) {
                     return rc;
                 }
@@ -139,7 +139,7 @@ TEST(Fts5ExtensionTest, CustomTokenizerAndAuxiliaryFunction) {
 
     // Register custom tokenizer
     api.create_tokenizer(
-        "ws_lower", [](const std::vector<std::string_view>& args) {
+        "ws_lower", [](std::span<const std::string_view> args) {
             std::string prefix = args.empty() ? "" : std::string(args[0]);
             return std::make_unique<WhitespaceLowerTokenizer>(
                 std::move(prefix));
@@ -151,13 +151,13 @@ TEST(Fts5ExtensionTest, CustomTokenizerAndAuxiliaryFunction) {
 
     // Direct tokenize_with
     std::vector<std::string> direct_tokens;
-    api.tokenize_with(
-        "ws_lower", {"p_"}, static_cast<int>(Fts5TokenizeFlag::Document),
-        "Hello WORLD",
-        [&](int /*tflags*/, std::string_view tok, int /*start*/, int /*end*/) {
-            direct_tokens.emplace_back(tok);
-            return 0;
-        });
+    api.tokenize_with("ws_lower", {"p_"}, Fts5TokenizeFlag::Document,
+                      "Hello WORLD",
+                      [&](Fts5TokenFlags /*tflags*/, std::string_view tok,
+                          int /*start*/, int /*end*/) {
+                          direct_tokens.emplace_back(tok);
+                          return 0;
+                      });
     ASSERT_EQ(direct_tokens.size(), 2U);
     EXPECT_EQ(direct_tokens[0], "p_hello");
     EXPECT_EQ(direct_tokens[1], "p_world");
@@ -167,7 +167,7 @@ TEST(Fts5ExtensionTest, CustomTokenizerAndAuxiliaryFunction) {
     aux_freed.store(0);
     api.create_function("match_stats", [](const Fts5ExtensionContext& fts5,
                                           FunctionContext& sql_ctx,
-                                          const std::vector<ValueRef>& args) {
+                                          std::span<const ValueRef> args) {
         if (fts5.get_auxdata() == nullptr) {
             fts5.set_auxdata(new int(1), [](void* p) {
                 delete static_cast<int*>(p);

@@ -4,8 +4,10 @@
 
 #include "sqlitex/detail/sqlite3_fwd.h"
 
+#include <expected>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 
 namespace sqlitex {
 
@@ -189,8 +191,23 @@ class SQLITEX_EXPORT ChangesetApplyError : public Error {
 };
 
 // ============================================================================
-// Error-throwing utilities
+// Expected<T> — C++23 non-throwing result alias
 // ============================================================================
+
+template <typename T>
+using Expected = std::expected<T, Error>;
+
+// ============================================================================
+// Error-throwing & Expected utilities
+// ============================================================================
+
+/// Construct an Error corresponding to the SQLite result code and message
+/// obtained from the given database handle (useful for std::expected paths).
+[[nodiscard]] SQLITEX_EXPORT Error make_sqlite_error(int rc, sqlite3* db);
+
+/// Construct an Error from a result code and message.
+[[nodiscard]] SQLITEX_EXPORT Error make_sqlite_error(int rc,
+                                                     std::string_view message);
 
 /// Throw an exception corresponding to the SQLite result code and message
 /// obtained from the given database handle.
@@ -205,9 +222,9 @@ inline void throw_on_error(int rc, sqlite3* db) {
 }
 
 /// If `rc` is an error, throw using a fixed message.
-SQLITEX_EXPORT void throw_on_error(int rc, const char* message);
+SQLITEX_EXPORT void throw_on_error(int rc, std::string_view message);
 
 /// Map a raw SQLite result code to an ErrorCode enum value.
-SQLITEX_EXPORT ErrorCode map_error_code(int sqlite_rc) noexcept;
+[[nodiscard]] SQLITEX_EXPORT ErrorCode map_error_code(int sqlite_rc) noexcept;
 
 } // namespace sqlitex

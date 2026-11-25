@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.15)
 project(sqlitex VERSION 0.1.0 LANGUAGES C CXX)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
@@ -122,6 +122,9 @@ set(SQLITEX_SOURCES
 
 set(SQLITEX_HEADERS
     include/sqlitex/sqlitex.h
+    include/sqlitex/flags.h
+    include/sqlitex/concepts.h
+    include/sqlitex/format.h
     include/sqlitex/error.h
     include/sqlitex/sqlite.h
     include/sqlitex/database.h
@@ -211,6 +214,7 @@ endif()
 # Library target
 # ============================================================================
 add_library(sqlitex ${SQLITEX_SOURCES} ${SQLITEX_HEADERS})
+target_compile_features(sqlitex PUBLIC cxx_std_23)
 
 # DLL export/import support for Windows shared library builds
 include(GenerateExportHeader)

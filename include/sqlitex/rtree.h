@@ -2,11 +2,14 @@
 
 #include "sqlitex_export.h"
 
+#include "sqlitex/concepts.h"
 #include "sqlitex/detail/sqlite3_fwd.h"
 #include "sqlitex/value.h"
 
 #include <cstdint>
 #include <functional>
+#include <memory>
+#include <span>
 #include <string_view>
 
 namespace sqlitex {
@@ -33,27 +36,39 @@ class SQLITEX_EXPORT RTreeQueryInfo {
         : info_(info) {
     }
 
-    int param_count() const noexcept;
-    double param(int i) const noexcept;
-    ValueRef sql_param(int i) const noexcept;
+    [[nodiscard]] int param_count() const noexcept;
+    [[nodiscard]] double param(int i) const noexcept;
+    [[nodiscard]] std::span<const double> params() const noexcept;
+    [[nodiscard]] ValueRef sql_param(int i) const noexcept;
 
-    int coord_count() const noexcept;
-    double coord(int i) const noexcept;
+    [[nodiscard]] int coord_count() const noexcept;
+    [[nodiscard]] double coord(int i) const noexcept;
+    [[nodiscard]] std::span<const double> coords() const noexcept;
 
-    int level() const noexcept;
-    int max_level() const noexcept;
-    int64_t rowid() const noexcept;
-    double parent_score() const noexcept;
-    RTreeWithin parent_within() const noexcept;
-    unsigned int queue_count(int level) const noexcept;
+    [[nodiscard]] int level() const noexcept;
+    [[nodiscard]] int max_level() const noexcept;
+    [[nodiscard]] int64_t rowid() const noexcept;
+    [[nodiscard]] double parent_score() const noexcept;
+    [[nodiscard]] RTreeWithin parent_within() const noexcept;
+    [[nodiscard]] unsigned int queue_count(int level) const noexcept;
 
     void set_within(RTreeWithin within) noexcept;
     void set_score(double score) noexcept;
 
-    void* user_data() const noexcept;
+    [[nodiscard]] void* user_data() const noexcept;
     void set_user_data(void* data, void (*deleter)(void*) = nullptr) noexcept;
 
-    sqlite3_rtree_query_info* handle() noexcept {
+    template <typename T>
+    void set_user_data(std::unique_ptr<T> data) noexcept {
+        set_user_data(data.release(), &detail::delete_typed<T>);
+    }
+
+    template <typename T>
+    [[nodiscard]] T* user_data_as() const noexcept {
+        return static_cast<T*>(user_data());
+    }
+
+    [[nodiscard]] sqlite3_rtree_query_info* handle() noexcept {
         return info_;
     }
 
@@ -66,10 +81,10 @@ class SQLITEX_EXPORT RTreeQueryInfo {
 // ============================================================================
 
 /// 1st-generation R-Tree geometry callback (sqlite3_rtree_geometry_callback).
-/// Return true if the bounding box defined by coords[0..n_coords-1] overlaps
-/// the query geometry defined by params[0..n_params-1].
+/// Return true if the bounding box defined by `coords` overlaps
+/// the query geometry defined by `params`.
 using RTreeGeometryCallback = std::function<bool(
-    const double* params, int n_params, const double* coords, int n_coords)>;
+    std::span<const double> params, std::span<const double> coords)>;
 
 /// 2nd-generation R-Tree scored query callback (sqlite3_rtree_query_callback).
 /// Populate info.set_within(...) and optionally info.set_score(...).

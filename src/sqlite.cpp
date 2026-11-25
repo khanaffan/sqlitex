@@ -27,8 +27,16 @@ std::string_view sourceid() noexcept {
     return s ? std::string_view(s) : std::string_view{};
 }
 
-int threadsafe() noexcept {
-    return sqlite3_threadsafe();
+ThreadingMode threadsafe() noexcept {
+    switch (sqlite3_threadsafe()) {
+    case 0:
+        return ThreadingMode::SingleThread;
+    case 2:
+        return ThreadingMode::MultiThread;
+    case 1:
+    default:
+        return ThreadingMode::Serialized;
+    }
 }
 
 bool compileoption_used(std::string_view option_name) noexcept {
@@ -281,16 +289,22 @@ bool keyword_check(std::string_view word) noexcept {
 
 UriFilename::UriFilename(
     std::string_view database, std::string_view journal, std::string_view wal,
-    const std::vector<std::pair<std::string, std::string>>& params) {
+    std::span<const std::pair<std::string_view, std::string_view>> params) {
     std::string db_str(database);
     std::string jr_str(journal);
     std::string wal_str(wal);
 
+    std::vector<std::string> param_storage;
+    param_storage.reserve(params.size() * 2);
+    for (const auto& [k, v] : params) {
+        param_storage.emplace_back(k);
+        param_storage.emplace_back(v);
+    }
+
     std::vector<const char*> param_ptrs;
-    param_ptrs.reserve(params.size() * 2);
-    for (const auto& kv : params) {
-        param_ptrs.push_back(kv.first.c_str());
-        param_ptrs.push_back(kv.second.c_str());
+    param_ptrs.reserve(param_storage.size());
+    for (const auto& s : param_storage) {
+        param_ptrs.push_back(s.c_str());
     }
 
     filename_ = sqlite3_create_filename(

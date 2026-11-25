@@ -25,33 +25,67 @@ namespace sqlitex {
 
 namespace {
 
+static_assert(static_cast<int>(BcvfsConfig::CacheSize) == SQLITE_BCV_CACHESIZE);
+static_assert(static_cast<int>(BcvfsConfig::NRequest) == SQLITE_BCV_NREQUEST);
+static_assert(static_cast<int>(BcvfsConfig::HttpTimeout) ==
+              SQLITE_BCV_HTTPTIMEOUT);
+static_assert(static_cast<int>(BcvfsConfig::HttpLog) == SQLITE_BCV_CURLVERBOSE);
+static_assert(static_cast<int>(BcvfsConfig::HttpLogTimeout) ==
+              SQLITE_BCV_HTTPLOG_TIMEOUT);
+static_assert(static_cast<int>(BcvfsConfig::HttpLogMaxEntries) ==
+              SQLITE_BCV_HTTPLOG_NENTRY);
+static_assert(static_cast<int>(BcvfsLogFlag::Http) == SQLITE_BCV_LOG_HTTP);
+static_assert(static_cast<int>(BcvfsLogFlag::Upload) == SQLITE_BCV_LOG_UPLOAD);
+static_assert(static_cast<int>(BcvfsLogFlag::Cleanup) ==
+              SQLITE_BCV_LOG_CLEANUP);
+static_assert(static_cast<int>(BcvfsLogFlag::Event) == SQLITE_BCV_LOG_EVENT);
+static_assert(static_cast<int>(BcvfsLogFlag::HttpRetry) ==
+              SQLITE_BCV_LOG_HTTPRETRY);
+static_assert(static_cast<int>(BcvfsAttachFlag::Secure) ==
+              SQLITE_BCV_ATTACH_SECURE);
+static_assert(static_cast<int>(BcvfsAttachFlag::IfNotExists) ==
+              SQLITE_BCV_ATTACH_IFNOT);
+
 int auth_shim(void* ctx, const char* storage, const char* account,
-              const char* container, char** auth_token) {
+              const char* container, char** auth_token) noexcept {
     auto* cb = static_cast<BcvfsAuthCallback*>(ctx);
-    std::string token;
-    bool ok = (*cb)(storage ? storage : "", account ? account : "",
-                    container ? container : "", token);
-    if (ok && !token.empty()) {
-        *auth_token = sqlite3_mprintf("%s", token.c_str());
+    try {
+        std::string token;
+        bool const ok = (*cb)(storage ? storage : "", account ? account : "",
+                              container ? container : "", token);
+        if (ok && !token.empty()) {
+            *auth_token = sqlite3_mprintf("%s", token.c_str());
+        }
+        return ok ? SQLITE_OK : SQLITE_DENY;
+    } catch (...) {
+        return SQLITE_DENY;
     }
-    return ok ? SQLITE_OK : SQLITE_DENY;
 }
 
-void log_shim(void* ctx, int mask, const char* msg) {
+void log_shim(void* ctx, int mask, const char* msg) noexcept {
     auto* cb = static_cast<BcvfsMaskedLogCallback*>(ctx);
     if (cb && *cb && msg) {
-        (*cb)(mask, std::string_view(msg));
+        try {
+            (*cb)(BcvfsLogFlags::from_raw(mask), std::string_view(msg));
+        } catch (...) {
+        }
     }
 }
 
-int busy_shim(void* ctx, int retry_count) {
+int busy_shim(void* ctx, int retry_count) noexcept {
     auto* cb = static_cast<BcvfsBusyCallback*>(ctx);
-    if (!cb || !*cb)
-        return -1;                       // default cancel
-    auto delay = (*cb)(retry_count + 1); // SQLite counts from 0
-    if (!delay)
+    if (!cb || !*cb) {
+        return -1; // default cancel
+    }
+    try {
+        auto delay = (*cb)(retry_count + 1); // SQLite counts from 0
+        if (!delay) {
+            return -1;
+        }
+        return static_cast<int>(delay->count());
+    } catch (...) {
         return -1;
-    return static_cast<int>(delay->count());
+    }
 }
 
 } // anonymous namespace
@@ -104,8 +138,9 @@ Bcvfs& Bcvfs::operator=(Bcvfs&& other) noexcept {
 // Configuration
 // ============================================================================
 
-Bcvfs& Bcvfs::config(int op, int64_t val) {
-    int rc = sqlite3_bcvfs_config(bcvfs_, op, static_cast<sqlite3_int64>(val));
+Bcvfs& Bcvfs::config(BcvfsConfig op, int64_t val) {
+    int rc = sqlite3_bcvfs_config(bcvfs_, static_cast<int>(op),
+                                  static_cast<sqlite3_int64>(val));
     if (rc != SQLITE_OK) {
         throw_on_error(rc, "sqlite3_bcvfs_config failed");
     }
@@ -113,27 +148,27 @@ Bcvfs& Bcvfs::config(int op, int64_t val) {
 }
 
 Bcvfs& Bcvfs::set_cache_size(int64_t bytes) {
-    return config(SQLITE_BCV_CACHESIZE, bytes);
+    return config(BcvfsConfig::CacheSize, bytes);
 }
 
 Bcvfs& Bcvfs::set_max_requests(int n) {
-    return config(SQLITE_BCV_NREQUEST, n);
+    return config(BcvfsConfig::NRequest, n);
 }
 
 Bcvfs& Bcvfs::set_http_timeout(std::chrono::seconds timeout) {
-    return config(SQLITE_BCV_HTTPTIMEOUT, timeout.count());
+    return config(BcvfsConfig::HttpTimeout, timeout.count());
 }
 
 Bcvfs& Bcvfs::set_http_logging(bool enabled) {
-    return config(SQLITE_BCV_CURLVERBOSE, enabled ? 1 : 0);
+    return config(BcvfsConfig::HttpLog, enabled ? 1 : 0);
 }
 
 Bcvfs& Bcvfs::set_http_log_timeout(std::chrono::seconds timeout) {
-    return config(SQLITE_BCV_HTTPLOG_TIMEOUT, timeout.count());
+    return config(BcvfsConfig::HttpLogTimeout, timeout.count());
 }
 
 Bcvfs& Bcvfs::set_http_log_max_entries(int max_entries) {
-    return config(SQLITE_BCV_HTTPLOG_NENTRY, max_entries);
+    return config(BcvfsConfig::HttpLogMaxEntries, max_entries);
 }
 
 // ============================================================================
@@ -151,25 +186,28 @@ void Bcvfs::set_auth_callback(BcvfsAuthCallback cb) {
                                 auth_shim);
 }
 
-void Bcvfs::set_log_callback(BcvfsLogCallback cb, int mask) {
+void Bcvfs::set_log_callback(BcvfsLogCallback cb, BcvfsLogFlags mask) {
     if (!cb) {
-        set_masked_log_callback({}, 0);
+        set_masked_log_callback({}, BcvfsLogFlag::None);
         return;
     }
     set_masked_log_callback(
-        [fn = std::move(cb)](int /*mask*/, std::string_view msg) { fn(msg); },
+        [fn = std::move(cb)](BcvfsLogFlags /*mask*/, std::string_view msg) {
+            fn(msg);
+        },
         mask);
 }
 
-void Bcvfs::set_masked_log_callback(BcvfsMaskedLogCallback cb, int mask) {
+void Bcvfs::set_masked_log_callback(BcvfsMaskedLogCallback cb,
+                                    BcvfsLogFlags mask) {
     if (!cb) {
         sqlite3_bcvfs_log_callback(bcvfs_, nullptr, 0, nullptr);
         log_cb_.reset();
         return;
     }
     log_cb_ = std::make_unique<BcvfsMaskedLogCallback>(std::move(cb));
-    sqlite3_bcvfs_log_callback(bcvfs_, static_cast<void*>(log_cb_.get()), mask,
-                               log_shim);
+    sqlite3_bcvfs_log_callback(bcvfs_, static_cast<void*>(log_cb_.get()),
+                               mask.raw(), log_shim);
 }
 
 // ============================================================================
@@ -178,7 +216,7 @@ void Bcvfs::set_masked_log_callback(BcvfsMaskedLogCallback cb, int mask) {
 
 void Bcvfs::attach(std::string_view storage, std::string_view account,
                    std::string_view container, std::string_view alias,
-                   int flags) {
+                   BcvfsAttachFlags flags) {
     std::string stor(storage);
     std::string acct(account);
     std::string cont(container);
@@ -186,7 +224,7 @@ void Bcvfs::attach(std::string_view storage, std::string_view account,
     char* err = nullptr;
 
     int rc = sqlite3_bcvfs_attach(bcvfs_, stor.c_str(), acct.c_str(),
-                                  cont.c_str(), al.c_str(), flags, &err);
+                                  cont.c_str(), al.c_str(), flags.raw(), &err);
     if (rc != SQLITE_OK) {
         std::string msg(err ? err : "bcvfs_attach failed");
         if (err)
@@ -296,7 +334,7 @@ void Bcvfs::revert(std::string_view container) {
     }
 }
 
-bool Bcvfs::is_daemon() noexcept {
+bool Bcvfs::is_daemon() const noexcept {
     return sqlite3_bcvfs_isdaemon(const_cast<sqlite3_bcvfs*>(bcvfs_)) != 0;
 }
 
@@ -365,7 +403,7 @@ bool PrefetchHandle::step(int max_requests, std::chrono::milliseconds timeout) {
         msg ? std::string(msg) : std::string("bcvfs_prefetch_run failed"));
 }
 
-PrefetchStatus PrefetchHandle::status() {
+PrefetchStatus PrefetchHandle::status() const {
     if (!handle_) {
         return PrefetchStatus::Error;
     }
@@ -457,7 +495,7 @@ Bcvfs& Bcvfs::operator=(Bcvfs&& other) noexcept {
 
 Bcvfs::~Bcvfs() = default;
 
-Bcvfs& Bcvfs::config(int /*unused*/, int64_t /*unused*/) {
+Bcvfs& Bcvfs::config(BcvfsConfig /*unused*/, int64_t /*unused*/) {
     return *this;
 }
 Bcvfs& Bcvfs::set_cache_size(int64_t /*unused*/) {
@@ -481,15 +519,16 @@ Bcvfs& Bcvfs::set_http_log_max_entries(int /*unused*/) {
 
 void Bcvfs::set_auth_callback(BcvfsAuthCallback /*unused*/) {
 }
-void Bcvfs::set_log_callback(BcvfsLogCallback /*unused*/, int /*unused*/) {
+void Bcvfs::set_log_callback(BcvfsLogCallback /*unused*/,
+                             BcvfsLogFlags /*unused*/) {
 }
 void Bcvfs::set_masked_log_callback(BcvfsMaskedLogCallback /*unused*/,
-                                    int /*unused*/) {
+                                    BcvfsLogFlags /*unused*/) {
 }
 
 void Bcvfs::attach(std::string_view /*unused*/, std::string_view /*unused*/,
                    std::string_view /*unused*/, std::string_view /*unused*/,
-                   int /*unused*/) {
+                   BcvfsAttachFlags /*unused*/) {
 }
 void Bcvfs::detach(std::string_view /*unused*/) {
 }
@@ -506,7 +545,7 @@ void Bcvfs::remove(std::string_view /*unused*/, std::string_view /*unused*/) {
 }
 void Bcvfs::revert(std::string_view /*unused*/) {
 }
-bool Bcvfs::is_daemon() noexcept {
+bool Bcvfs::is_daemon() const noexcept {
     return false;
 }
 void Bcvfs::register_vtab(Database& /*unused*/) {
@@ -528,7 +567,7 @@ bool PrefetchHandle::step(int /*unused*/,
                           std::chrono::milliseconds /*unused*/) {
     return true;
 }
-PrefetchStatus PrefetchHandle::status() {
+PrefetchStatus PrefetchHandle::status() const {
     return PrefetchStatus::Error;
 }
 int PrefetchHandle::error_code() const noexcept {

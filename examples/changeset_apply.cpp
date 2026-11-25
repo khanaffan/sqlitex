@@ -19,7 +19,7 @@ int main() {
 
         std::cout << "Initial config:\n";
         for (const auto& row : db.query("SELECT * FROM config ORDER BY key")) {
-            std::cout << "  " << row[0].as_text() << " = " << row[1].as_text()
+            std::cout << "  " << row[0].get_text() << " = " << row[1].get_text()
                       << '\n';
         }
 
@@ -47,7 +47,7 @@ int main() {
 
         std::cout << "\nConfig after undo:\n";
         for (const auto& row : db.query("SELECT * FROM config ORDER BY key")) {
-            std::cout << "  " << row[0].as_text() << " = " << row[1].as_text()
+            std::cout << "  " << row[0].get_text() << " = " << row[1].get_text()
                       << '\n';
         }
 

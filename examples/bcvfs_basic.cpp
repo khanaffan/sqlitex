@@ -17,9 +17,7 @@ int main() {
         // --- 1. Create the Block Cache VFS ---
         std::cout << "Creating bcvfs...\n";
         sqlitex::Bcvfs bcvfs(
-            (std::filesystem::temp_directory_path() / "sqlite-block-cache")
-                .string()
-                .c_str(),
+            std::filesystem::temp_directory_path() / "sqlite-block-cache",
             "bcvfs");
 
         // --- 2. Configure ---
@@ -48,10 +46,9 @@ int main() {
 
         // --- 5. Open a database via the bcvfs VFS ---
         std::cout << "Opening database...\n";
-        sqlitex::Database db("/mydata/mydatabase.db",
-                             static_cast<int>(sqlitex::OpenFlag::ReadWrite) |
-                                 static_cast<int>(sqlitex::OpenFlag::Create),
-                             "bcvfs");
+        sqlitex::Database db(
+            "/mydata/mydatabase.db",
+            sqlitex::OpenFlag::ReadWrite | sqlitex::OpenFlag::Create, "bcvfs");
 
         // --- 6. Use the database normally ---
         db.execute(R"(
@@ -65,7 +62,7 @@ int main() {
 
         auto rows = db.query("SELECT * FROM kv");
         for (const auto& row : rows) {
-            std::cout << "  " << row[0].as_text() << " = " << row[1].as_text()
+            std::cout << "  " << row[0].get_text() << " = " << row[1].get_text()
                       << '\n';
         }
 

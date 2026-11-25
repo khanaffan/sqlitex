@@ -22,14 +22,16 @@ namespace sqlitex {
 Changeset::Changeset(void* data, int size) noexcept : data_(data), size_(size) {
 }
 
-Changeset Changeset::copy_from(const void* src, int size) {
-    void* buf = sqlite3_malloc64(static_cast<sqlite3_uint64>(size));
-    if (!buf && size > 0)
+Changeset Changeset::copy_from(std::span<const std::byte> data) {
+    int const sz = static_cast<int>(data.size());
+    void* buf = sqlite3_malloc64(static_cast<sqlite3_uint64>(data.size()));
+    if (!buf && !data.empty()) {
         throw std::bad_alloc();
-    if ((buf != nullptr) && size > 0) {
-        std::memcpy(buf, src, static_cast<std::size_t>(size));
     }
-    return {buf, size};
+    if (buf != nullptr && !data.empty()) {
+        std::memcpy(buf, data.data(), data.size());
+    }
+    return {buf, sz};
 }
 
 Changeset::Changeset(Changeset&& other) noexcept
@@ -49,10 +51,10 @@ Changeset& Changeset::operator=(Changeset&& other) noexcept {
 // Changeset — operations
 // ============================================================================
 
-ChangesetIterator Changeset::begin(int flags) const {
+ChangesetIterator Changeset::changes(ChangesetStartFlags flags) const {
     sqlite3_changeset_iter* iter = nullptr;
 
-    int rc = sqlite3changeset_start_v2(&iter, size_, data_.get(), flags);
+    int rc = sqlite3changeset_start_v2(&iter, size_, data_.get(), flags.raw());
     throw_on_error(rc, "sqlite3changeset_start_v2 failed");
 
     return ChangesetIterator(iter);
@@ -170,10 +172,7 @@ struct ApplyStrmCtxV2 {
 
 int strm_input_shim_v2(void* ctx, void* data, int* pn) {
     auto* ac = static_cast<ApplyStrmCtxV2*>(ctx);
-    int sz = *pn;
-    int rc = (*ac->input)(data, sz);
-    *pn = sz;
-    return rc;
+    return detail::stream_input_shim(ac->input, data, pn);
 }
 
 int strm_table_filter_shim(void* ctx, const char* tbl_name) {
@@ -211,10 +210,7 @@ struct ApplyStrmCtxV3 {
 
 int strm_input_shim_v3(void* ctx, void* data, int* pn) {
     auto* ac = static_cast<ApplyStrmCtxV3*>(ctx);
-    int sz = *pn;
-    int rc = (*ac->input)(data, sz);
-    *pn = sz;
-    return rc;
+    return detail::stream_input_shim(ac->input, data, pn);
 }
 
 int strm_change_filter_shim_v3(void* ctx, sqlite3_changeset_iter* pIter) {
@@ -255,12 +251,12 @@ struct RebaseGuard {
     }
 };
 
-void copy_rebase_buffer(std::vector<uint8_t>* out, void* data, int n) {
+void copy_rebase_buffer(std::vector<std::byte>* out, void* data, int n) {
     if (out == nullptr) {
         return;
     }
     if (data != nullptr && n > 0) {
-        const auto* bytes = static_cast<const uint8_t*>(data);
+        const auto* bytes = static_cast<const std::byte*>(data);
         out->assign(bytes, bytes + n);
     } else {
         out->clear();
@@ -298,7 +294,7 @@ void Changeset::apply_v2(
     Database& db,
     std::function<ChangesetAction(ConflictType, const ChangesetIterator&)>
         conflict_handler,
-    ApplyFlags flags, std::vector<uint8_t>* rebase_out) const {
+    ApplyFlags flags, std::vector<std::byte>* rebase_out) const {
     ApplyCtxV2 ctx{&conflict_handler, nullptr};
     RebaseGuard rebase{};
     int n_rebase = 0;
@@ -307,7 +303,7 @@ void Changeset::apply_v2(
     int rc = sqlite3changeset_apply_v2(
         db.handle(), size_, data_.get(), nullptr, conflict_shim_v2, &ctx,
         rebase_out ? &rebase.ptr : nullptr, rebase_out ? &n_rebase : nullptr,
-        static_cast<int>(flags));
+        flags.raw());
 
     if (rc != SQLITE_OK) {
         sink.check(rc);
@@ -323,7 +319,7 @@ void Changeset::apply_v3(
     std::function<ChangesetAction(ConflictType, const ChangesetIterator&)>
         conflict_handler,
     std::function<bool(const ChangesetIterator&)> per_change_filter,
-    ApplyFlags flags, std::vector<uint8_t>* rebase_out) const {
+    ApplyFlags flags, std::vector<std::byte>* rebase_out) const {
     ChangeFilter cf =
         per_change_filter ? std::move(per_change_filter) : nullptr;
     ApplyCtxV3 ctx{&conflict_handler, cf ? &cf : nullptr};
@@ -334,7 +330,7 @@ void Changeset::apply_v3(
     int rc = sqlite3changeset_apply_v3(
         db.handle(), size_, data_.get(), cf ? change_filter_shim_v3 : nullptr,
         conflict_shim_v3, &ctx, rebase_out ? &rebase.ptr : nullptr,
-        rebase_out ? &n_rebase : nullptr, static_cast<int>(flags));
+        rebase_out ? &n_rebase : nullptr, flags.raw());
 
     if (rc != SQLITE_OK) {
         sink.check(rc);
@@ -374,7 +370,7 @@ void Changeset::apply_v2_stream(
     Database& db, StreamInputFunc input,
     std::function<ChangesetAction(ConflictType, const ChangesetIterator&)>
         conflict_handler,
-    ApplyFlags flags, std::vector<uint8_t>* rebase_out) {
+    ApplyFlags flags, std::vector<std::byte>* rebase_out) {
     ApplyStrmCtxV2 ctx{&input, &conflict_handler, nullptr};
     RebaseGuard rebase{};
     int n_rebase = 0;
@@ -383,7 +379,7 @@ void Changeset::apply_v2_stream(
     int rc = sqlite3changeset_apply_v2_strm(
         db.handle(), strm_input_shim_v2, &ctx, nullptr, strm_conflict_shim,
         &ctx, rebase_out ? &rebase.ptr : nullptr,
-        rebase_out ? &n_rebase : nullptr, static_cast<int>(flags));
+        rebase_out ? &n_rebase : nullptr, flags.raw());
 
     if (rc != SQLITE_OK) {
         sink.check(rc);
@@ -400,7 +396,7 @@ void Changeset::apply_v3_stream(
     std::function<ChangesetAction(ConflictType, const ChangesetIterator&)>
         conflict_handler,
     std::function<bool(const ChangesetIterator&)> per_change_filter,
-    ApplyFlags flags, std::vector<uint8_t>* rebase_out) {
+    ApplyFlags flags, std::vector<std::byte>* rebase_out) {
     ChangeFilter cf =
         per_change_filter ? std::move(per_change_filter) : nullptr;
     ApplyStrmCtxV3 ctx{&input, &conflict_handler, cf ? &cf : nullptr};
@@ -412,7 +408,7 @@ void Changeset::apply_v3_stream(
         db.handle(), strm_input_shim_v3, &ctx,
         cf ? strm_change_filter_shim_v3 : nullptr, strm_conflict_shim_v3, &ctx,
         rebase_out ? &rebase.ptr : nullptr, rebase_out ? &n_rebase : nullptr,
-        static_cast<int>(flags));
+        flags.raw());
 
     if (rc != SQLITE_OK) {
         sink.check(rc);
@@ -469,10 +465,10 @@ Patchset& Patchset::operator=(Patchset&& other) noexcept {
     return *this;
 }
 
-ChangesetIterator Patchset::begin(int flags) const {
+ChangesetIterator Patchset::changes(ChangesetStartFlags flags) const {
     sqlite3_changeset_iter* iter = nullptr;
 
-    int rc = sqlite3changeset_start_v2(&iter, size_, data_.get(), flags);
+    int rc = sqlite3changeset_start_v2(&iter, size_, data_.get(), flags.raw());
     throw_on_error(rc, "sqlite3changeset_start_v2 failed");
 
     return ChangesetIterator(iter);

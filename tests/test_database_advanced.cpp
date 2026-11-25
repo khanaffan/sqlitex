@@ -20,8 +20,8 @@ TEST(DatabaseAdvancedTest, UpdateCommitRollbackHooks) {
     Database db(":memory:");
     db.execute("CREATE TABLE items(id INTEGER PRIMARY KEY, v INT);");
 
-    std::vector<std::pair<int, int64_t>> updates;
-    db.set_update_hook([&](int op, std::string_view schema,
+    std::vector<std::pair<ChangeOperation, int64_t>> updates;
+    db.set_update_hook([&](ChangeOperation op, std::string_view schema,
                            std::string_view table, int64_t rowid) {
         EXPECT_EQ(schema, "main");
         EXPECT_EQ(table, "items");
@@ -42,7 +42,7 @@ TEST(DatabaseAdvancedTest, UpdateCommitRollbackHooks) {
     EXPECT_EQ(commits, 1);
     EXPECT_EQ(rollbacks, 0);
     ASSERT_EQ(updates.size(), 1U);
-    EXPECT_EQ(updates[0].first, SQLITE_INSERT);
+    EXPECT_EQ(updates[0].first, ChangeOperation::Insert);
     EXPECT_EQ(updates[0].second, 1);
 
     // Veto commit -> update_hook fires during INSERT before commit veto rolls
@@ -68,7 +68,7 @@ TEST(DatabaseAdvancedTest, PreupdateHook) {
     db.execute("CREATE TABLE kv(k INTEGER PRIMARY KEY, v TEXT);");
 
     struct Event {
-        int op = 0;
+        ChangeOperation op = ChangeOperation::Insert;
         int64_t old_id = 0;
         int64_t new_id = 0;
         int cols = 0;
@@ -87,11 +87,13 @@ TEST(DatabaseAdvancedTest, PreupdateHook) {
         ev.cols = ctx.count();
         ev.depth = ctx.depth();
         ev.blobwrite = ctx.blobwrite();
-        if (ev.op == SQLITE_UPDATE || ev.op == SQLITE_DELETE) {
-            ev.old_v = ctx.old_value(1).as_text();
+        if (ev.op == ChangeOperation::Update ||
+            ev.op == ChangeOperation::Delete) {
+            ev.old_v = std::string(ctx.old_value(1).get_text());
         }
-        if (ev.op == SQLITE_INSERT || ev.op == SQLITE_UPDATE) {
-            ev.new_v = ctx.new_value(1).as_text();
+        if (ev.op == ChangeOperation::Insert ||
+            ev.op == ChangeOperation::Update) {
+            ev.new_v = std::string(ctx.new_value(1).get_text());
         }
         events.push_back(std::move(ev));
     });
@@ -102,18 +104,18 @@ TEST(DatabaseAdvancedTest, PreupdateHook) {
     db.set_preupdate_hook({});
 
     ASSERT_EQ(events.size(), 3U);
-    EXPECT_EQ(events[0].op, SQLITE_INSERT);
+    EXPECT_EQ(events[0].op, ChangeOperation::Insert);
     EXPECT_EQ(events[0].new_id, 1);
     EXPECT_EQ(events[0].cols, 2);
     EXPECT_EQ(events[0].depth, 0);
     EXPECT_EQ(events[0].blobwrite, -1);
     EXPECT_EQ(events[0].new_v, "alpha");
 
-    EXPECT_EQ(events[1].op, SQLITE_UPDATE);
+    EXPECT_EQ(events[1].op, ChangeOperation::Update);
     EXPECT_EQ(events[1].old_v, "alpha");
     EXPECT_EQ(events[1].new_v, "beta");
 
-    EXPECT_EQ(events[2].op, SQLITE_DELETE);
+    EXPECT_EQ(events[2].op, ChangeOperation::Delete);
     EXPECT_EQ(events[2].old_v, "beta");
 }
 
@@ -126,12 +128,12 @@ TEST(DatabaseAdvancedTest, TraceHookAndProgressHandler) {
     int row_traces = 0;
     db.set_trace_hook(TraceFlag::Stmt | TraceFlag::Profile | TraceFlag::Row,
                       [&](const TraceEvent& ev) {
-                          if (ev.type == SQLITE_TRACE_STMT) {
+                          if (ev.type == TraceFlag::Stmt) {
                               ++stmt_traces;
-                          } else if (ev.type == SQLITE_TRACE_PROFILE) {
+                          } else if (ev.type == TraceFlag::Profile) {
                               ++profile_traces;
-                              EXPECT_GE(ev.duration_ns, 0);
-                          } else if (ev.type == SQLITE_TRACE_ROW) {
+                              EXPECT_GE(ev.duration.count(), 0);
+                          } else if (ev.type == TraceFlag::Row) {
                               ++row_traces;
                           }
                       });
@@ -142,14 +144,15 @@ TEST(DatabaseAdvancedTest, TraceHookAndProgressHandler) {
     EXPECT_GE(stmt_traces, 2);
     EXPECT_GE(profile_traces, 2);
     EXPECT_EQ(row_traces, 3);
-    db.set_trace_hook(0, {});
+    db.set_trace_hook(TraceFlag::None, {});
 
     // Progress handler interrupts a large recursive CTE
     int ticks = 0;
     db.set_progress_handler(10, [&]() -> bool { return ++ticks >= 3; });
     EXPECT_THROW(
-        db.query("WITH RECURSIVE c(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM "
-                 "c WHERE x < 1000000) SELECT SUM(x) FROM c;"),
+        (void)db.query(
+            "WITH RECURSIVE c(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM "
+            "c WHERE x < 1000000) SELECT SUM(x) FROM c;"),
         Error);
     EXPECT_GE(ticks, 3);
     db.set_progress_handler(0, {});
@@ -212,8 +215,8 @@ TEST(DatabaseAdvancedTest, CollationsAndCollationNeeded) {
 
     auto rows = db.query("SELECT w FROM words ORDER BY w COLLATE REV;");
     ASSERT_EQ(rows.size(), 3U);
-    EXPECT_EQ(rows[0][0].as_text(), "cherry");
-    EXPECT_EQ(rows[2][0].as_text(), "apple");
+    EXPECT_EQ(rows[0][0].get_text(), "cherry");
+    EXPECT_EQ(rows[2][0].get_text(), "apple");
 
     // On-demand collation registration via set_collation_needed
     int needed_calls = 0;
@@ -235,7 +238,7 @@ TEST(DatabaseAdvancedTest, CollationsAndCollationNeeded) {
         db.query("SELECT w FROM words ORDER BY w COLLATE LEN_ORDER;");
     EXPECT_EQ(needed_calls, 1);
     ASSERT_EQ(len_rows.size(), 3U);
-    EXPECT_EQ(len_rows[0][0].as_text(), "apple"); // len 5
+    EXPECT_EQ(len_rows[0][0].get_text(), "apple"); // len 5
 
     db.set_collation_needed({});
     db.drop_collation("REV");
@@ -293,9 +296,9 @@ TEST(DatabaseAdvancedTest, ConfigLimitsStatusAndIntrospection) {
 
     EXPECT_TRUE(db.is_autocommit());
     EXPECT_EQ(db.txn_state("main"), TxnState::None);
-    EXPECT_EQ(db.db_readonly("main"), 0);
+    EXPECT_EQ(db.db_readonly("main"), DbReadOnlyState::ReadWrite);
     EXPECT_FALSE(db.is_readonly("main"));
-    EXPECT_EQ(db.db_readonly("no_such_db"), -1);
+    EXPECT_EQ(db.db_readonly("no_such_db"), DbReadOnlyState::NoSuchSchema);
 
     db.begin_transaction(TransactionMode::Immediate);
     EXPECT_FALSE(db.is_autocommit());
@@ -333,7 +336,7 @@ TEST(DatabaseAdvancedTest, ConfigLimitsStatusAndIntrospection) {
     // Memory / cache maintenance & setlk_timeout / busy_handler / autovacuum
     EXPECT_NO_THROW(db.db_release_memory());
     EXPECT_NO_THROW(db.db_cacheflush());
-    EXPECT_NO_THROW(db.setlk_timeout(100, 0));
+    EXPECT_NO_THROW(db.setlk_timeout(std::chrono::milliseconds{100}, 0));
     EXPECT_NO_THROW(db.set_busy_handler([](int) { return false; }));
     EXPECT_NO_THROW(db.set_busy_handler({}));
     EXPECT_NO_THROW(

@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+#include <array>
 #include <cstdint>
 #include <vector>
 
@@ -63,15 +64,17 @@ TEST(ValueTest, BlobConstruction) {
     std::vector<uint8_t> data = {0x01, 0x02, 0x03};
     Value v(data);
     EXPECT_TRUE(v.is_blob());
-    EXPECT_EQ(v.blob_size(), 3);
-    EXPECT_EQ(v.get_blob()[0], 0x01);
+    EXPECT_EQ(v.as_bytes().size(), 3u);
+    EXPECT_EQ(v.get_blob()[0], std::byte{0x01});
 }
 
-TEST(ValueTest, RawBlobConstruction) {
-    const uint8_t data[] = {0xAA, 0xBB};
-    Value v(static_cast<const void*>(data), 2);
+TEST(ValueTest, SpanBlobConstruction) {
+    const std::array<uint8_t, 2> data = {0xAA, 0xBB};
+    Value v(std::as_bytes(std::span(data)));
     EXPECT_TRUE(v.is_blob());
-    EXPECT_EQ(v.blob_size(), 2);
+    EXPECT_EQ(v.as_bytes().size(), 2u);
+    EXPECT_EQ(v.as_bytes()[0], std::byte{0xAA});
+    EXPECT_EQ(v.as_bytes()[1], std::byte{0xBB});
 }
 
 // ============================================================================
@@ -89,9 +92,9 @@ TEST(ValueTest, TypeEnum) {
 // Accessors
 // ============================================================================
 
-TEST(ValueTest, AsText) {
+TEST(ValueTest, ToString) {
     Value v(std::string("hello"));
-    EXPECT_EQ(v.as_text(), "hello");
+    EXPECT_EQ(v.to_string(), "hello");
 }
 
 TEST(ValueTest, AsInt64) {
@@ -140,7 +143,7 @@ TEST(ValueTest, EqualityCrossType) {
 TEST(ValueTest, EmptyBlob) {
     Value v(std::vector<uint8_t>{});
     EXPECT_TRUE(v.is_blob());
-    EXPECT_EQ(v.blob_size(), 0);
+    EXPECT_EQ(v.as_bytes().size(), 0u);
 }
 
 TEST(ValueTest, EmptyString) {
@@ -168,27 +171,25 @@ TEST(ValueTest, AsDoubleFromInt) {
     EXPECT_DOUBLE_EQ(v.as_double(), 42.0);
 }
 
-TEST(ValueTest, AsTextFromInteger) {
+TEST(ValueTest, ToStringFromInteger) {
     Value v(42);
-    EXPECT_EQ(v.as_text(), "42");
+    EXPECT_EQ(v.to_string(), "42");
 }
 
-TEST(ValueTest, AsTextFromDouble) {
+TEST(ValueTest, ToStringFromDouble) {
     Value v(3.140000);
-    auto text = v.as_text();
+    auto text = v.to_string();
     EXPECT_FALSE(text.empty());
 }
 
-TEST(ValueTest, AsTextFromDoubleThenIntOnSameThread) {
-    // Verify thread_local buffer reuse across types is safe
+TEST(ValueTest, ToStringFromDoubleThenIntOwnedStrings) {
+    // to_string() returns owned std::string so both values remain valid
     Value v_int(999);
     Value v_dbl(1.5);
-    auto t1 = v_int.as_text();
+    std::string t1 = v_int.to_string();
+    std::string t2 = v_dbl.to_string();
     EXPECT_EQ(t1, "999");
-    auto t2 = v_dbl.as_text();
     EXPECT_FALSE(t2.empty());
-    // t1 may or may not be valid after the second call (thread_local reuse)
-    // but t2 must be correct
 }
 
 // ============================================================================
@@ -217,23 +218,23 @@ TEST(ValueTest, OperatorNotEqual) {
 // Accessor edge cases
 // ============================================================================
 
-TEST(ValueTest, BlobData) {
+TEST(ValueTest, AsBytes) {
     std::vector<uint8_t> data = {0xAA, 0xBB, 0xCC};
     Value v(data);
-    auto* ptr = static_cast<const uint8_t*>(v.blob_data());
-    ASSERT_NE(ptr, nullptr);
-    EXPECT_EQ(ptr[0], 0xAA);
-    EXPECT_EQ(ptr[1], 0xBB);
-    EXPECT_EQ(ptr[2], 0xCC);
+    auto bytes = v.as_bytes();
+    ASSERT_EQ(bytes.size(), 3u);
+    EXPECT_EQ(bytes[0], std::byte{0xAA});
+    EXPECT_EQ(bytes[1], std::byte{0xBB});
+    EXPECT_EQ(bytes[2], std::byte{0xCC});
 }
 
-TEST(ValueTest, AsBlob) {
+TEST(ValueTest, GetBlob) {
     std::vector<uint8_t> data = {0xDE, 0xAD};
     Value v(data);
-    const auto& blob = v.as_blob();
+    const auto& blob = v.get_blob();
     EXPECT_EQ(blob.size(), 2u);
-    EXPECT_EQ(blob[0], 0xDE);
-    EXPECT_EQ(blob[1], 0xAD);
+    EXPECT_EQ(blob[0], std::byte{0xDE});
+    EXPECT_EQ(blob[1], std::byte{0xAD});
 }
 
 // ============================================================================
@@ -270,7 +271,7 @@ TEST(ValueTest, FromSqlite3ValueText) {
     auto rows = db.query("SELECT 'hello'");
     ASSERT_EQ(rows.size(), 1u);
     EXPECT_TRUE(rows[0][0].is_text());
-    EXPECT_EQ(rows[0][0].as_text(), "hello");
+    EXPECT_EQ(rows[0][0].get_text(), "hello");
 }
 
 TEST(ValueTest, FromSqlite3ValueBlob) {
@@ -278,7 +279,7 @@ TEST(ValueTest, FromSqlite3ValueBlob) {
     auto rows = db.query("SELECT X'CAFE'");
     ASSERT_EQ(rows.size(), 1u);
     EXPECT_TRUE(rows[0][0].is_blob());
-    EXPECT_EQ(rows[0][0].blob_size(), 2);
+    EXPECT_EQ(rows[0][0].as_bytes().size(), 2u);
 }
 
 } // anonymous namespace

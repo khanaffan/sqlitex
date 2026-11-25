@@ -27,6 +27,11 @@ class Patchset;
 /// Table filter callbacks: return true to track changes for a table.
 using SessionTableFilter = std::function<bool(std::string_view table_name)>;
 
+enum class SessionObjectConfig : int {
+    Size = SQLITE_SESSION_OBJCONFIG_SIZE,
+    RowId = SQLITE_SESSION_OBJCONFIG_ROWID,
+};
+
 class SQLITEX_EXPORT Session {
     public:
     /// Create a session attached to a database.
@@ -42,10 +47,10 @@ class SQLITEX_EXPORT Session {
     Session(const Session&) = delete;
     Session& operator=(const Session&) = delete;
 
-    explicit operator bool() const noexcept {
+    [[nodiscard]] explicit operator bool() const noexcept {
         return session_ != nullptr;
     }
-    sqlite3_session* handle() noexcept {
+    [[nodiscard]] sqlite3_session* handle() noexcept {
         return session_;
     }
 
@@ -63,7 +68,7 @@ class SQLITEX_EXPORT Session {
 
     // === Table Attachment ===
 
-    /// Attach a table to track.  Pass empty/null to attach all tables.
+    /// Attach a table to track. Pass empty to attach all tables.
     void attach(std::string_view table_name = {});
 
     /// Attach all tables for change tracking.
@@ -83,23 +88,12 @@ class SQLITEX_EXPORT Session {
 
     /// Compute a diff of a single table against another attached database
     /// on the same connection, and return the accumulated changeset.
-    ///
-    /// \param table_name  Table to diff.
-    /// \param from_db     Name of the attached database with the reference
-    ///                    schema (typically an ATTACH-ed database).
-    ///
-    /// \warning sqlite3session_diff **appends** the diff to this session's
-    /// existing change set rather than replacing it.  The returned Changeset
-    /// will contain all previously recorded changes **plus** the diff.
-    /// To obtain only the diff, call this on a freshly created session with
-    /// no other changes attached to it.
     [[nodiscard]] Changeset diff(std::string_view table_name,
                                  std::string_view from_db = "main");
 
     // === Streaming Extraction ===
 
     /// Stream the accumulated changeset via an output callback.
-    /// The callback is invoked synchronously for each chunk of data.
     void changeset_stream(StreamOutputFunc output);
 
     /// Stream the accumulated patchset via an output callback.
@@ -113,17 +107,23 @@ class SQLITEX_EXPORT Session {
 
     // === Introspection ===
 
-    bool is_empty() const noexcept;
-    int64_t memory_used() const noexcept;
+    [[nodiscard]] bool is_empty() const noexcept;
+    [[nodiscard]] int64_t memory_used() const noexcept;
 
     /// Upper bound on changeset size in bytes (requires
-    /// SQLITE_SESSION_OBJCONFIG_SIZE enabled before recording changes).
-    int64_t changeset_size() const noexcept;
+    /// SessionObjectConfig::Size enabled before attaching tables).
+    [[nodiscard]] int64_t changeset_size() const noexcept;
 
     // === Object Config ===
 
-    /// Configure session behavior.
-    /// op: SQLITE_SESSION_OBJCONFIG_SIZE or SQLITE_SESSION_OBJCONFIG_ROWID
+    /// Type-safe session object configuration (must be called before attaching
+    /// any table). Returns the resulting boolean state.
+    bool set_object_config(SessionObjectConfig op, bool enable);
+
+    /// Query a session object configuration option.
+    [[nodiscard]] bool get_object_config(SessionObjectConfig op) const;
+
+    /// Raw escape hatch for sqlite3session_object_config().
     void set_object_config(int op, void* arg);
 
     // === Global Session Config ===
@@ -135,7 +135,7 @@ class SQLITEX_EXPORT Session {
     static int set_stream_chunk_size(int bytes);
 
     /// Query the current global streaming chunk size (bytes).
-    static int stream_chunk_size();
+    [[nodiscard]] static int stream_chunk_size();
 
     private:
     sqlite3_session* session_ = nullptr;

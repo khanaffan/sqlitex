@@ -184,13 +184,25 @@ std::optional<std::string> ChangesetIterator::old_text(int i) const {
     return std::string(text, static_cast<std::size_t>(n));
 }
 
-std::optional<std::vector<uint8_t>> ChangesetIterator::old_blob(int i) const {
+std::optional<std::vector<std::byte>> ChangesetIterator::old_blob(int i) const {
     sqlite3_value* val = old_value_raw(i);
-    if (val == nullptr || sqlite3_value_type(val) == SQLITE_NULL)
+    if (val == nullptr || sqlite3_value_type(val) == SQLITE_NULL) {
         return std::nullopt;
-    const auto* data = static_cast<const uint8_t*>(sqlite3_value_blob(val));
-    int n = sqlite3_value_bytes(val);
-    return std::vector<uint8_t>(data, data + n);
+    }
+    const auto* data = static_cast<const std::byte*>(sqlite3_value_blob(val));
+    int const n = sqlite3_value_bytes(val);
+    if (data == nullptr || n <= 0) {
+        return std::vector<std::byte>{};
+    }
+    return std::vector<std::byte>(data, data + n);
+}
+
+std::optional<Value> ChangesetIterator::old_value(int i) const {
+    sqlite3_value* val = old_value_raw(i);
+    if (val == nullptr) {
+        return std::nullopt;
+    }
+    return Value::from_sqlite3_value(val);
 }
 
 // ============================================================================
@@ -207,34 +219,49 @@ bool ChangesetIterator::new_is_null(int i) const {
 
 std::optional<int64_t> ChangesetIterator::new_int(int i) const {
     sqlite3_value* val = new_value_raw(i);
-    if (val == nullptr || sqlite3_value_type(val) == SQLITE_NULL)
+    if (val == nullptr || sqlite3_value_type(val) == SQLITE_NULL) {
         return std::nullopt;
+    }
     return sqlite3_value_int64(val);
 }
 
 std::optional<double> ChangesetIterator::new_double(int i) const {
     sqlite3_value* val = new_value_raw(i);
-    if (val == nullptr || sqlite3_value_type(val) == SQLITE_NULL)
+    if (val == nullptr || sqlite3_value_type(val) == SQLITE_NULL) {
         return std::nullopt;
+    }
     return sqlite3_value_double(val);
 }
 
 std::optional<std::string> ChangesetIterator::new_text(int i) const {
     sqlite3_value* val = new_value_raw(i);
-    if (val == nullptr || sqlite3_value_type(val) == SQLITE_NULL)
+    if (val == nullptr || sqlite3_value_type(val) == SQLITE_NULL) {
         return std::nullopt;
+    }
     const auto* text = reinterpret_cast<const char*>(sqlite3_value_text(val));
     int const n = sqlite3_value_bytes(val);
     return std::string(text, static_cast<std::size_t>(n));
 }
 
-std::optional<std::vector<uint8_t>> ChangesetIterator::new_blob(int i) const {
+std::optional<std::vector<std::byte>> ChangesetIterator::new_blob(int i) const {
     sqlite3_value* val = new_value_raw(i);
-    if (val == nullptr || sqlite3_value_type(val) == SQLITE_NULL)
+    if (val == nullptr || sqlite3_value_type(val) == SQLITE_NULL) {
         return std::nullopt;
-    const auto* data = static_cast<const uint8_t*>(sqlite3_value_blob(val));
-    int n = sqlite3_value_bytes(val);
-    return std::vector<uint8_t>(data, data + n);
+    }
+    const auto* data = static_cast<const std::byte*>(sqlite3_value_blob(val));
+    int const n = sqlite3_value_bytes(val);
+    if (data == nullptr || n <= 0) {
+        return std::vector<std::byte>{};
+    }
+    return std::vector<std::byte>(data, data + n);
+}
+
+std::optional<Value> ChangesetIterator::new_value(int i) const {
+    sqlite3_value* val = new_value_raw(i);
+    if (val == nullptr) {
+        return std::nullopt;
+    }
+    return Value::from_sqlite3_value(val);
 }
 
 // ============================================================================
@@ -243,35 +270,47 @@ std::optional<std::vector<uint8_t>> ChangesetIterator::new_blob(int i) const {
 
 std::optional<int64_t> ChangesetIterator::conflict_int(int i) const {
     sqlite3_value* val = conflict_value_raw(i);
-    if (sqlite3_value_type(val) == SQLITE_NULL)
+    if (sqlite3_value_type(val) == SQLITE_NULL) {
         return std::nullopt;
+    }
     return sqlite3_value_int64(val);
 }
 
 std::optional<double> ChangesetIterator::conflict_double(int i) const {
     sqlite3_value* val = conflict_value_raw(i);
-    if (sqlite3_value_type(val) == SQLITE_NULL)
+    if (sqlite3_value_type(val) == SQLITE_NULL) {
         return std::nullopt;
+    }
     return sqlite3_value_double(val);
 }
 
 std::optional<std::string> ChangesetIterator::conflict_text(int i) const {
     sqlite3_value* val = conflict_value_raw(i);
-    if (sqlite3_value_type(val) == SQLITE_NULL)
+    if (sqlite3_value_type(val) == SQLITE_NULL) {
         return std::nullopt;
+    }
     const auto* text = reinterpret_cast<const char*>(sqlite3_value_text(val));
     int const n = sqlite3_value_bytes(val);
     return std::string(text, static_cast<std::size_t>(n));
 }
 
-std::optional<std::vector<uint8_t>> ChangesetIterator::conflict_blob(
+std::optional<std::vector<std::byte>> ChangesetIterator::conflict_blob(
     int i) const {
     sqlite3_value* val = conflict_value_raw(i);
-    if (sqlite3_value_type(val) == SQLITE_NULL)
+    if (sqlite3_value_type(val) == SQLITE_NULL) {
         return std::nullopt;
-    const auto* data = static_cast<const uint8_t*>(sqlite3_value_blob(val));
-    int n = sqlite3_value_bytes(val);
-    return std::vector<uint8_t>(data, data + n);
+    }
+    const auto* data = static_cast<const std::byte*>(sqlite3_value_blob(val));
+    int const n = sqlite3_value_bytes(val);
+    if (data == nullptr || n <= 0) {
+        return std::vector<std::byte>{};
+    }
+    return std::vector<std::byte>(data, data + n);
+}
+
+Value ChangesetIterator::conflict_value(int i) const {
+    sqlite3_value* val = conflict_value_raw(i);
+    return Value::from_sqlite3_value(val);
 }
 
 int ChangesetIterator::fk_conflict_count() const {
@@ -286,13 +325,13 @@ int ChangesetIterator::fk_conflict_count() const {
 // ============================================================================
 
 ChangesetIterator ChangesetIterator::from_stream(StreamInputFunc input,
-                                                 int flags) {
+                                                 ChangesetStartFlags flags) {
     auto input_ptr = std::make_unique<StreamInputFunc>(std::move(input));
     sqlite3_changeset_iter* iter = nullptr;
 
     int rc = sqlite3changeset_start_v2_strm(&iter, detail::stream_input_shim,
                                             static_cast<void*>(input_ptr.get()),
-                                            flags);
+                                            flags.raw());
     throw_on_error(rc, "sqlite3changeset_start_v2_strm failed");
 
     ChangesetIterator result(iter);

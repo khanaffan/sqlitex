@@ -32,7 +32,11 @@ void FunctionContext::set_result(double val) {
 }
 
 void FunctionContext::set_result(const char* val) {
-    sqlite3_result_text(ctx_, val, -1, SQLITE_TRANSIENT);
+    if (val == nullptr) {
+        sqlite3_result_null(ctx_);
+    } else {
+        sqlite3_result_text(ctx_, val, -1, SQLITE_TRANSIENT);
+    }
 }
 
 void FunctionContext::set_result(std::string_view val) {
@@ -40,11 +44,7 @@ void FunctionContext::set_result(std::string_view val) {
                         SQLITE_TRANSIENT);
 }
 
-void FunctionContext::set_result(const void* blob, int size) {
-    sqlite3_result_blob(ctx_, blob, size, SQLITE_TRANSIENT);
-}
-
-void FunctionContext::set_result(const std::vector<uint8_t>& blob) {
+void FunctionContext::set_result(std::span<const std::byte> blob) {
     sqlite3_result_blob(ctx_, blob.data(), static_cast<int>(blob.size()),
                         SQLITE_TRANSIENT);
 }
@@ -61,18 +61,16 @@ void FunctionContext::set_result(const Value& val) {
         set_result(val.as_double());
         break;
     case Value::Type::Text:
-        set_result(val.as_text());
+        set_result(val.get_text());
         break;
-    case Value::Type::Blob: {
-        auto& blob = val.as_blob();
-        set_result(blob.data(), static_cast<int>(blob.size()));
+    case Value::Type::Blob:
+        set_result(val.as_bytes());
         break;
-    }
     }
 }
 
-void FunctionContext::set_error(const char* msg) {
-    sqlite3_result_error(ctx_, msg, -1);
+void FunctionContext::set_error(std::string_view msg) {
+    sqlite3_result_error(ctx_, msg.data(), static_cast<int>(msg.size()));
 }
 
 void FunctionContext::set_error_code(int code) noexcept {
@@ -103,20 +101,24 @@ void FunctionContext::set_result_static(std::string_view val) noexcept {
                         SQLITE_STATIC);
 }
 
-void FunctionContext::set_result_static(const void* blob, int size) noexcept {
-    sqlite3_result_blob(ctx_, blob, size, SQLITE_STATIC);
+void FunctionContext::set_result_static(
+    std::span<const std::byte> blob) noexcept {
+    sqlite3_result_blob(ctx_, blob.data(), static_cast<int>(blob.size()),
+                        SQLITE_STATIC);
 }
 
-void FunctionContext::set_result_blob64(const void* blob, uint64_t size,
+void FunctionContext::set_result_blob64(std::span<const std::byte> blob,
                                         void (*destructor)(void*)) {
-    sqlite3_result_blob64(ctx_, blob, static_cast<sqlite3_uint64>(size),
+    sqlite3_result_blob64(ctx_, blob.data(),
+                          static_cast<sqlite3_uint64>(blob.size()),
                           destructor ? destructor : SQLITE_TRANSIENT);
 }
 
-void FunctionContext::set_result_text64(const char* text, uint64_t size,
+void FunctionContext::set_result_text64(std::string_view text,
                                         unsigned char encoding,
                                         void (*destructor)(void*)) {
-    sqlite3_result_text64(ctx_, text, static_cast<sqlite3_uint64>(size),
+    sqlite3_result_text64(ctx_, text.data(),
+                          static_cast<sqlite3_uint64>(text.size()),
                           destructor ? destructor : SQLITE_TRANSIENT, encoding);
 }
 
@@ -158,12 +160,33 @@ bool FunctionContext::vtab_nochange() const noexcept {
 // ValueRef & ProtectedValue implementations
 // ============================================================================
 
-int ValueRef::type() const noexcept {
-    return val_ ? sqlite3_value_type(val_) : SQLITE_NULL;
+namespace {
+
+Value::Type map_value_type(int raw_type) noexcept {
+    switch (raw_type) {
+    case SQLITE_INTEGER:
+        return Value::Type::Integer;
+    case SQLITE_FLOAT:
+        return Value::Type::Float;
+    case SQLITE3_TEXT:
+        return Value::Type::Text;
+    case SQLITE_BLOB:
+        return Value::Type::Blob;
+    case SQLITE_NULL:
+    default:
+        return Value::Type::Null;
+    }
 }
 
-int ValueRef::numeric_type() const noexcept {
-    return val_ ? sqlite3_value_numeric_type(val_) : SQLITE_NULL;
+} // anonymous namespace
+
+Value::Type ValueRef::type() const noexcept {
+    return val_ ? map_value_type(sqlite3_value_type(val_)) : Value::Type::Null;
+}
+
+Value::Type ValueRef::numeric_type() const noexcept {
+    return val_ ? map_value_type(sqlite3_value_numeric_type(val_))
+                : Value::Type::Null;
 }
 
 int ValueRef::encoding() const noexcept {
@@ -183,7 +206,7 @@ bool ValueRef::from_bind() const noexcept {
 }
 
 bool ValueRef::is_null() const noexcept {
-    return type() == SQLITE_NULL;
+    return type() == Value::Type::Null;
 }
 
 int32_t ValueRef::as_int() const noexcept {
@@ -210,8 +233,16 @@ std::string_view ValueRef::as_text() const noexcept {
         txt, static_cast<std::size_t>(sqlite3_value_bytes(val_)));
 }
 
-const void* ValueRef::as_blob() const noexcept {
-    return val_ ? sqlite3_value_blob(val_) : nullptr;
+std::span<const std::byte> ValueRef::as_bytes() const noexcept {
+    if (val_ == nullptr) {
+        return {};
+    }
+    const auto* blob = static_cast<const std::byte*>(sqlite3_value_blob(val_));
+    int const n = sqlite3_value_bytes(val_);
+    if (blob == nullptr || n <= 0) {
+        return {};
+    }
+    return {blob, static_cast<std::size_t>(n)};
 }
 
 int ValueRef::bytes() const noexcept {
@@ -291,8 +322,13 @@ Value Value::from_sqlite3_value(sqlite3_value* val) {
     }
     case SQLITE_BLOB: {
         int const n = sqlite3_value_bytes(val);
-        const void* blob = sqlite3_value_blob(val);
-        return Value(blob, n);
+        const auto* blob =
+            static_cast<const std::byte*>(sqlite3_value_blob(val));
+        if (blob == nullptr || n <= 0) {
+            return Value(std::vector<std::byte>{});
+        }
+        return Value(
+            std::span<const std::byte>(blob, static_cast<std::size_t>(n)));
     }
     case SQLITE_NULL:
     default:

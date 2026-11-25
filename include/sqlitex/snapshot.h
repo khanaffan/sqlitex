@@ -5,6 +5,7 @@
 #include "sqlitex/detail/sqlite3_fwd.h"
 #include "sqlitex/error.h"
 
+#include <compare>
 #include <string_view>
 
 namespace sqlitex {
@@ -42,6 +43,10 @@ class SQLITEX_EXPORT Snapshot {
     [[nodiscard]] static Snapshot get(Database& db,
                                       std::string_view schema = "main");
 
+    /// Non-throwing variant of get().
+    [[nodiscard]] static Expected<Snapshot> try_get(
+        Database& db, std::string_view schema = "main");
+
     /// Start a read transaction on `db` at this historical snapshot.
     void open(Database& db, std::string_view schema = "main") const;
 
@@ -50,25 +55,14 @@ class SQLITEX_EXPORT Snapshot {
 
     /// Compare the ages of two snapshots of the same database.
     /// Returns < 0 if a is older than b, 0 if identical, > 0 if a is newer.
-    static int compare(const Snapshot& a, const Snapshot& b) noexcept;
+    [[nodiscard]] static int compare(const Snapshot& a,
+                                     const Snapshot& b) noexcept;
 
     bool operator==(const Snapshot& other) const noexcept {
         return compare(*this, other) == 0;
     }
-    bool operator!=(const Snapshot& other) const noexcept {
-        return compare(*this, other) != 0;
-    }
-    bool operator<(const Snapshot& other) const noexcept {
-        return compare(*this, other) < 0;
-    }
-    bool operator<=(const Snapshot& other) const noexcept {
-        return compare(*this, other) <= 0;
-    }
-    bool operator>(const Snapshot& other) const noexcept {
-        return compare(*this, other) > 0;
-    }
-    bool operator>=(const Snapshot& other) const noexcept {
-        return compare(*this, other) >= 0;
+    std::strong_ordering operator<=>(const Snapshot& other) const noexcept {
+        return compare(*this, other) <=> 0;
     }
 
     private:

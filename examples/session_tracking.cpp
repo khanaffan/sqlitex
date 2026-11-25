@@ -41,30 +41,17 @@ int main() {
         sqlitex::Changeset changeset = session.changeset();
         std::cout << "Changeset size: " << changeset.size() << " bytes\n\n";
 
-        // --- Iterate over the changeset ---
+        // --- Iterate over the changeset using C++20/23 range-for ---
         std::cout << "Changes in changeset:\n";
-        auto iter = changeset.begin();
-        while (iter.next()) {
-            std::cout << "  Table: " << iter.table_name() << ", ";
-
-            switch (iter.op()) {
-            case sqlitex::ChangeOperation::Insert:
-                std::cout << "INSERT";
-                break;
-            case sqlitex::ChangeOperation::Update:
-                std::cout << "UPDATE";
-                break;
-            case sqlitex::ChangeOperation::Delete:
-                std::cout << "DELETE";
-                break;
-            }
-
-            std::cout << " (" << iter.column_count() << " columns)\n";
+        for (const auto& change : changeset.changes()) {
+            std::cout << "  Table: " << change.table_name() << ", "
+                      << sqlitex::to_string_view(change.op()) << " ("
+                      << change.column_count() << " columns)\n";
 
             // Print old/new values
-            for (int i = 0; i < iter.column_count(); ++i) {
-                auto old_val = iter.old_int(i);
-                auto new_val = iter.new_int(i);
+            for (int i = 0; i < change.column_count(); ++i) {
+                auto old_val = change.old_int(i);
+                auto new_val = change.new_int(i);
                 if (old_val || new_val) {
                     std::cout << "    col[" << i << "]: "
                               << (old_val ? std::to_string(*old_val) : "NULL")
@@ -93,9 +80,9 @@ int main() {
         std::cout << "Replica data after apply:\n";
         for (const auto& row :
              replica.query("SELECT * FROM items ORDER BY id")) {
-            std::cout << "  id=" << row[0].as_int64()
-                      << " name=" << row[1].as_text()
-                      << " quantity=" << row[2].as_int64() << '\n';
+            std::cout << "  id=" << row[0].get_int()
+                      << " name=" << row[1].get_text()
+                      << " quantity=" << row[2].get_int() << '\n';
         }
 
     } catch (const sqlitex::Error& e) {

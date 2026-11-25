@@ -1,22 +1,31 @@
 # sqlitex
 
-A modern C++17 RAII wrapper for **SQLite 3.54.1** and **CloudSQLite (bcVFS)**,
+A modern **C++23** RAII wrapper for **SQLite 3.54.1** and **CloudSQLite (bcVFS)**,
 with full coverage of the modern UTF-8 SQLite public API, the Session extension,
 built-in extensions (FTS5, R-Tree, CArray), scoped authorization policies, and
 cloud-backed storage.
 
 ## Highlights
 
+- **Modern C++23 Interface** — type-safe `Flags<E>` bitmasks, C++20/23 concepts
+  (`Bindable`, `ColumnValue`, `OwnedColumnValue`, `SqlInteger`, `ConstByteRange`),
+  `std::span<const std::byte>` binary views, `<ranges>` row and changeset views
+  (`stmt.rows<Ts...>()`, `cs.changes()`), `std::expected<T, Error>` non-throwing
+  entry points (`try_open`, `try_prepare`, `try_step`), `std::filesystem::path`
+  overloads, `std::chrono` timeouts, `std::unique_ptr<T>` ownership transfers,
+  `<=>` comparisons, and `std::format` specializations.
 - **Bundled SQLite 3.54.1** — compiled from source as part of the library with
   Session, Preupdate Hook, FTS5, R-Tree, JSON1, CArray, Snapshot, Scanstatus,
   Normalize, Column Metadata, DBSTAT, Unlock Notify, and Setlk Timeout enabled.
 - **Clean Public Headers** — no public header includes `<sqlite3.h>`; forward
   declarations and constants live in `sqlitex/detail/sqlite3_fwd.h` and
   `sqlitex/detail/session_api.h`.
-- **Move-Only RAII & Typed Exceptions** — every handle (`Database`, `Statement`,
-  `BlobIO`, `Backup`, `Snapshot`, `Session`, `Changegroup`, `Rebaser`, `Bcvfs`,
-  `PrefetchHandle`, `BcvClient`) is move-only and throws typed `sqlitex::Error`
-  subclasses on failure.
+- **Safe Move-Only RAII & Typed Exceptions** — every handle (`Database`,
+  `Statement`, `BlobIO`, `Backup`, `Snapshot`, `Session`, `Changegroup`,
+  `Rebaser`, `Bcvfs`, `PrefetchHandle`, `BcvClient`) is move-only; `Transaction`
+  and `Savepoint` roll back automatically on scope exit unless explicitly
+  committed/released; failures throw typed `sqlitex::Error` subclasses (or
+  return `sqlitex::Expected<T>` from `try_*` entry points).
 - **Complete CloudSQLite Support** — wraps `blockcachevfs.h` (`Bcvfs`,
   `PrefetchHandle`), `bcvutil.h` (`BcvClient`), and `bcvmodule.h`
   (`BcvContainer`, `BcvJob`, `BcvRequest`), plus builds the `blockcachevfsd`
@@ -26,6 +35,7 @@ cloud-backed storage.
 
 ```cpp
 #include <sqlitex/sqlitex.h>
+#include <format>
 #include <iostream>
 
 int main() {
@@ -35,20 +45,22 @@ int main() {
     {
         sqlitex::Database::Transaction tx(db);
         auto stmt = db.prepare("INSERT INTO users VALUES (?, ?)");
-        stmt.bind_all(1, std::string_view("Alice")).execute();
+        stmt.bind_all(1, "Alice").execute();
         stmt.reset();
-        stmt.bind_all(2, std::string_view("Bob")).execute();
-    } // commits automatically on normal scope exit; rolls back on exception
+        stmt.bind_all(2, "Bob").execute();
+        tx.commit(); // rolls back on drop if commit() is not called
+    }
 
-    for (const auto& row : db.query("SELECT id, name FROM users ORDER BY id")) {
-        std::cout << row[0].as_int64() << ": " << row[1].as_text() << '\n';
+    auto q = db.prepare("SELECT id, name FROM users ORDER BY id");
+    for (auto&& [id, name] : q.rows<int64_t, std::string_view>()) {
+        std::cout << std::format("{}: {}\n", id, name);
     }
 }
 ```
 
 ## Requirements
 
-- **C++17** compiler (Clang 7+, GCC 8+, MSVC 2019+)
+- **C++23** compiler (Clang 17+ / AppleClang 16+, GCC 13+, MSVC 2022 17.8+)
 - **CMake** 3.15+
 - **libcurl** and **OpenSSL** (only when `SQLITEX_BCVFS=ON`)
 
@@ -124,13 +136,16 @@ when Azurite is unavailable; the offline end-to-end CloudSQLite suite
 ```
 include/sqlitex/
   sqlitex.h              Umbrella header
-  error.h                ErrorCode enum & typed exception hierarchy
+  concepts.h             C++20/23 concepts (Bindable, ColumnValue, ConstByteRange, ...)
+  flags.h                Type-safe Flags<E> bitmask wrapper
+  format.h               std::formatter specializations for enums & Value
+  error.h                ErrorCode enum, Expected<T> alias & typed exceptions
   sqlite.h               Global SQLite runtime, config, memory, VFS, URI & keywords
   value.h                Owned Value & non-owning ValueRef
   database.h             Database, Transaction, Savepoint, hooks, WAL, serialize
-  statement.h            Prepared Statement, bind helpers, scanstatus, metadata
+  statement.h            Prepared Statement, RowRange/TypedRowRange, scanstatus
   backup.h               Online Backup API
-  snapshot.h             WAL Snapshot API
+  snapshot.h             WAL Snapshot API (with <=>)
   blobio.h               Incremental BLOB I/O
   policy.h               ScopedPolicy authorizer & connection hardening guard
   function.h             Scalar, raw, aggregate, and window SQL functions
@@ -139,8 +154,8 @@ include/sqlitex/
   rtree.h                R-Tree geometry & scored query callbacks
   session.h              Session change tracking & config
   changeset.h            Changeset & Patchset (apply, invert, concat, streaming)
-  changeset_iterator.hπ   ChangesetIterator (memory & streaming)
-  changegroup.h          Changegroup merge & programmatic change builder
+  changeset_iterator.h   ChangesetIterator input_range (memory & streaming)
+  changegroup.h          Changegroup merge & RAII ChangeBuilder
   rebaser.h              Changeset Rebaser
   bcvfs.h                CloudSQLite VFS (blockcachevfs.h)
   prefetch.h             CloudSQLite PrefetchHandle
@@ -163,32 +178,34 @@ needed.
 ### Database, Statements & Values
 
 ```cpp
-sqlitex::Database db("app.db");
+sqlitex::Database db(std::filesystem::path{"app.db"});
+db.set_busy_timeout(std::chrono::milliseconds{5000});
 
-// Prepare with SQLITE_PREPARE_* flags via prepare_v3
+// Prepare with type-safe PrepareFlags
 auto stmt = db.prepare_v3("INSERT INTO items (id, name, payload) VALUES (?, ?, ?)",
-                          static_cast<unsigned int>(sqlitex::PrepareFlag::Persistent));
+                          sqlitex::PrepareFlag::Persistent);
 stmt.bind(1, 42)
-    .bind(2, std::string_view("widget"))
+    .bind(2, "widget")
     .bind_zeroblob(3, 1024)
     .execute();
 
-// Bind a C++ vector via SQLite's built-in carray extension
+// Bind a C++ vector via SQLite's built-in carray extension and iterate via <ranges>
 std::vector<int64_t> ids = {1, 2, 42};
-auto q = db.prepare("SELECT name FROM items WHERE id IN (SELECT value FROM carray(?))");
+auto q = db.prepare("SELECT id, name FROM items WHERE id IN (SELECT value FROM carray(?))");
 q.bind_carray(1, ids);
-while (q.step()) {
-    std::string_view name = q.column_text(0);
-    // Also available: column_value(), column_raw_value(), column_decltype(),
+for (auto&& [id, name] : q.rows<int64_t, std::string_view>()) {
+    // Also available: q.rows() (RowView range), column_as<T>(),
+    // column_value(), column_raw_value(), column_decltype(),
     // column_database_name(), column_table_name(), column_origin_name(),
     // expanded_sql(), normalized_sql(), status(), scanstatus(), set_explain().
 }
 
-// Convenience single-value query
-auto count = db.query_value<int64_t>("SELECT COUNT(*) FROM items");
+// Parameterized convenience single-value query (constrained to OwnedColumnValue)
+auto count = db.query_value<int64_t>("SELECT COUNT(*) FROM items WHERE id >= ?", 1);
 ```
 
-Nested transactions are supported via `Database::Savepoint`:
+`Database::Transaction` and `Database::Savepoint` roll back automatically on
+scope exit unless `.commit()` / `.release()` is explicitly called:
 
 ```cpp
 sqlitex::Database::Transaction tx(db);
@@ -196,11 +213,15 @@ db.execute("INSERT INTO items (id, name) VALUES (1, 'outer')");
 {
     sqlitex::Database::Savepoint sp(db, "inner");
     db.execute("INSERT INTO items (id, name) VALUES (2, 'discarded')");
-    sp.rollback(); // or let an exception roll back automatically
+    // Dropped without sp.release() -> rolls back automatically
 }
+tx.commit();
 ```
 
 Additional `Database` capabilities:
+- **Non-throwing APIs**: `Database::try_open()`, `db.try_prepare()`,
+  `stmt.try_step()`, `stmt.try_execute()`, and `Snapshot::try_get()` return
+  `sqlitex::Expected<T>` (`std::expected<T, Error>`).
 - **Serialization**: `serialize()` returns an RAII `SerializedDatabase`;
   `deserialize()` loads an image into a schema.
 - **WAL control**: `wal_checkpoint()`, `wal_checkpoint_v2()` (returning
@@ -214,8 +235,9 @@ Additional `Database` capabilities:
 - **Config, limits & introspection**: `db_config()`, `db_config_get()`,
   `set_main_db_name()`, `set_lookaside()`, `set_fp_digits()`, `limit()`,
   `db_status()`, `txn_state()`, `db_readonly()`, `db_filename()`, `db_name()`,
-  `db_names()`, `table_column_metadata()`, `table_exists()`, `set_clientdata()`,
-  `get_clientdata()`, `db_cacheflush()`, `db_release_memory()`, `next_stmt()`,
+  `db_names()`, `table_column_metadata()`, `table_exists()`, `set_clientdata()`
+  (with typed `std::unique_ptr<T>` ownership), `get_clientdata_as<T>()`,
+  `db_cacheflush()`, `db_release_memory()`, `next_stmt()`,
   `active_statements()`, `file_control()`, `interrupt()`, `error_offset()`,
   `system_errno()`.
 
@@ -223,9 +245,12 @@ Additional `Database` capabilities:
 
 ```cpp
 // Incremental BLOB I/O (blobio.h)
-sqlitex::BlobIO blob(db, "main", "items", "payload", 42, /*readwrite=*/true);
-blob.write("hello", 5, 0);
-std::vector<uint8_t> bytes = blob.read_all();
+sqlitex::BlobIO blob(db, "main", "items", "payload", 42,
+                     sqlitex::BlobOpenMode::ReadWrite);
+std::array<std::byte, 5> payload{
+    std::byte{'h'}, std::byte{'e'}, std::byte{'l'}, std::byte{'l'}, std::byte{'o'}};
+blob.write(payload, 0);
+std::vector<std::byte> bytes = blob.read_all();
 blob.reopen(43);
 
 // Online Backup (backup.h)
@@ -240,7 +265,7 @@ db.execute("PRAGMA journal_mode=WAL");
 db.execute("BEGIN");
 sqlitex::Snapshot snap = sqlitex::Snapshot::get(db);
 db.execute("COMMIT");
-// Later, open a read transaction at the historical point:
+// Compare snapshots with <=> / < / ==, or open a read transaction at snap:
 snap.open(other_conn);
 ```
 
@@ -309,21 +334,20 @@ session.attach_all(); // or session.attach("users") / session.set_table_filter(.
 // ... modify tables ...
 sqlitex::Changeset cs = session.changeset(); // or session.patchset() / session.diff(...)
 
-// Iterate changes
-auto it = cs.begin();
-while (it.next()) {
-    auto op = it.op();
-    auto table = it.table_name();
+// Iterate changes using C++20 range-for
+for (const auto& ch : cs.changes()) {
+    auto op = ch.op();
+    auto table = ch.table_name();
 }
 
 // Apply with conflict handler and capture rebase metadata (apply_v2 / apply_v3)
-std::vector<uint8_t> rebase_data;
+std::vector<std::byte> rebase_data;
 cs.apply_v2(
     target_db,
     [](sqlitex::ConflictType type, const sqlitex::ChangesetIterator& cur) {
         return sqlitex::ChangesetAction::Omit;
     },
-    /*flags=*/0,
+    sqlitex::ApplyFlags{},
     &rebase_data);
 
 // Rebase local changes against conflict resolutions
@@ -341,7 +365,9 @@ Additional Session capabilities:
   `output_stream()`, and `Rebaser::rebase_stream()`.
 - **Changegroup**: merge multiple changesets/patchsets with `add()`,
   `add_change()`, `set_patchset_mode()`, `set_schema()`, or construct changes
-  programmatically via `change_begin()` / `change_*()` / `change_finish()`.
+  safely via the RAII `begin_change()` (`ChangeBuilder` auto-discards unless
+  `.commit()` is called) or low-level `change_begin()` / `change_*()` /
+  `change_finish()`.
 
 ### Scoped Authorization (`ScopedPolicy`)
 
@@ -425,7 +451,7 @@ older OpenSSL).
 #include <filesystem>
 
 auto cache = std::filesystem::temp_directory_path() / "sqlite-cache";
-sqlitex::Bcvfs bcvfs(cache.string(), "bcvfs");
+sqlitex::Bcvfs bcvfs(cache, "bcvfs");
 bcvfs.set_cache_size(256LL * 1024 * 1024)
      .set_max_requests(8)
      .set_http_timeout(std::chrono::seconds(60))
@@ -474,7 +500,7 @@ client.upload("local.db", "remote.db");
 client.copy("remote.db", "backup.db");
 client.download("remote.db", "restored.db");
 client.remove("backup.db");
-client.cleanup(/*age_seconds=*/3600);
+client.cleanup(std::chrono::seconds{3600});
 ```
 
 #### Custom Storage Modules (`bcv_module.h`)
@@ -488,13 +514,19 @@ Implement `BcvContainer` (`fetch`, `put`, `remove`, `list`, `create_container`,
 
 ## Error Handling
 
-All failures throw `sqlitex::Error` or a specific subclass mapped from the
-primary SQLite result code (`RuntimeError`, `PermissionDenied`, `AbortError`,
-`BusyError`, `IoError`, `CorruptError`, `NotFoundError`, `ConstraintError`,
-`MismatchError`, `MisuseError`, `AuthError`, `RangeError`, `NotADbError`,
-`InternalError`, `ProtocolError`):
+All throwing APIs report failures via `sqlitex::Error` or a specific subclass
+mapped from the primary SQLite result code (`RuntimeError`, `PermissionDenied`,
+`AbortError`, `BusyError`, `IoError`, `CorruptError`, `NotFoundError`,
+`ConstraintError`, `MismatchError`, `MisuseError`, `AuthError`, `RangeError`,
+`NotADbError`, `InternalError`, `ProtocolError`), while `try_*` APIs return
+`sqlitex::Expected<T>` (`std::expected<T, Error>`):
 
 ```cpp
+if (auto db = sqlitex::Database::try_open("app.db"); !db) {
+    std::cerr << std::format("Open failed ({}): {}\n",
+                             db.error().error_code(), db.error().what());
+}
+
 try {
     db.execute("INVALID SQL");
 } catch (const sqlitex::ConstraintError& e) {

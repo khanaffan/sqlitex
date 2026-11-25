@@ -47,12 +47,12 @@ TEST_F(ChangesetTest, MoveConstruction) {
     db_.execute("INSERT INTO items VALUES (3, 'Test', 1)");
 
     Changeset cs1 = session.changeset();
-    int size = cs1.size();
+    auto size = cs1.size();
 
     Changeset cs2(std::move(cs1));
     EXPECT_EQ(cs2.size(), size);
-    EXPECT_TRUE(cs1.empty()); // NOLINT
-    EXPECT_EQ(cs1.size(), 0); // NOLINT
+    EXPECT_TRUE(cs1.empty());  // NOLINT
+    EXPECT_EQ(cs1.size(), 0u); // NOLINT
 }
 
 TEST_F(ChangesetTest, MoveAssignment) {
@@ -63,7 +63,7 @@ TEST_F(ChangesetTest, MoveAssignment) {
     db_.execute("INSERT INTO items VALUES (4, 'B', 2)");
 
     Changeset cs1 = session.changeset();
-    int size1 = cs1.size();
+    auto size1 = cs1.size();
 
     // Second session for another changeset
     Session s2(db_, "main");
@@ -87,7 +87,7 @@ TEST_F(ChangesetTest, CopyFrom) {
     db_.execute("INSERT INTO items VALUES (3, 'Test', 1)");
 
     Changeset cs1 = session.changeset();
-    Changeset cs2 = Changeset::copy_from(cs1.data(), cs1.size());
+    Changeset cs2 = Changeset::copy_from(cs1.bytes());
 
     EXPECT_EQ(cs1.size(), cs2.size());
     EXPECT_NE(cs1.data(), cs2.data()); // Different pointers
@@ -104,7 +104,7 @@ TEST_F(ChangesetTest, IterateInsert) {
     db_.execute("INSERT INTO items VALUES (3, 'Doodad', 25)");
 
     Changeset cs = session.changeset();
-    auto iter = cs.begin();
+    auto iter = cs.changes();
 
     ASSERT_TRUE(iter.next());
     EXPECT_EQ(iter.op(), ChangeOperation::Insert);
@@ -120,7 +120,7 @@ TEST_F(ChangesetTest, IterateUpdate) {
     db_.execute("UPDATE items SET quantity = 99 WHERE id = 1");
 
     Changeset cs = session.changeset();
-    auto iter = cs.begin();
+    auto iter = cs.changes();
 
     ASSERT_TRUE(iter.next());
     EXPECT_EQ(iter.op(), ChangeOperation::Update);
@@ -135,7 +135,7 @@ TEST_F(ChangesetTest, IterateDelete) {
     db_.execute("DELETE FROM items WHERE id = 2");
 
     Changeset cs = session.changeset();
-    auto iter = cs.begin();
+    auto iter = cs.changes();
 
     ASSERT_TRUE(iter.next());
     EXPECT_EQ(iter.op(), ChangeOperation::Delete);
@@ -153,7 +153,7 @@ TEST_F(ChangesetTest, InsertNewValues) {
     db_.execute("INSERT INTO items VALUES (3, 'Doodad', 25)");
 
     Changeset cs = session.changeset();
-    auto iter = cs.begin();
+    auto iter = cs.changes();
     ASSERT_TRUE(iter.next());
 
     // Old values should not be available for INSERT
@@ -172,7 +172,7 @@ TEST_F(ChangesetTest, DeleteOldValues) {
     db_.execute("DELETE FROM items WHERE id = 2");
 
     Changeset cs = session.changeset();
-    auto iter = cs.begin();
+    auto iter = cs.changes();
     ASSERT_TRUE(iter.next());
     EXPECT_EQ(iter.op(), ChangeOperation::Delete);
 
@@ -188,7 +188,7 @@ TEST_F(ChangesetTest, UpdateBothValues) {
     db_.execute("UPDATE items SET quantity = 99 WHERE id = 1");
 
     Changeset cs = session.changeset();
-    auto iter = cs.begin();
+    auto iter = cs.changes();
     ASSERT_TRUE(iter.next());
     EXPECT_EQ(iter.op(), ChangeOperation::Update);
 
@@ -207,7 +207,7 @@ TEST_F(ChangesetTest, PrimaryKey) {
     db_.execute("INSERT INTO items VALUES (3, 'Test', 1)");
 
     Changeset cs = session.changeset();
-    auto iter = cs.begin();
+    auto iter = cs.changes();
     ASSERT_TRUE(iter.next());
 
     auto pk = iter.primary_key();
@@ -226,7 +226,7 @@ TEST_F(ChangesetTest, IsIndirect) {
     db_.execute("INSERT INTO items VALUES (3, 'Test', 1)");
     {
         Changeset cs = session.changeset();
-        auto iter = cs.begin();
+        auto iter = cs.changes();
         ASSERT_TRUE(iter.next());
         EXPECT_FALSE(iter.is_indirect());
     }
@@ -246,7 +246,7 @@ TEST_F(ChangesetTest, MultipleChangesInOrder) {
     db_.execute("INSERT INTO items VALUES (5, 'C', 3)");
 
     Changeset cs = session.changeset();
-    auto iter = cs.begin();
+    auto iter = cs.changes();
     int count = 0;
     while (iter.next()) {
         EXPECT_EQ(iter.op(), ChangeOperation::Insert);
@@ -261,7 +261,7 @@ TEST_F(ChangesetTest, EmptyChangesetIteration) {
     session.attach_all();
 
     Changeset cs = session.changeset();
-    auto iter = cs.begin();
+    auto iter = cs.changes();
     EXPECT_FALSE(iter.next());
 }
 
@@ -285,7 +285,7 @@ TEST_F(ChangesetTest, ConcatTwoChangesets) {
     Changeset merged = cs1.concat(cs2);
     EXPECT_GT(merged.size(), std::max(cs1.size(), cs2.size()));
 
-    auto iter = merged.begin();
+    auto iter = merged.changes();
     int count = 0;
     while (iter.next())
         count++;
@@ -414,7 +414,7 @@ TEST_F(ChangesetTest, PatchsetExtraction) {
     EXPECT_GT(ps.size(), 0);
 
     // Patchset can be iterated
-    auto iter = ps.begin();
+    auto iter = ps.changes();
     ASSERT_TRUE(iter.next());
     EXPECT_EQ(iter.op(), ChangeOperation::Insert);
 }
@@ -457,7 +457,7 @@ TEST_F(ChangesetTest, ApplyStream) {
     Changeset cs = session.changeset();
 
     // Wrap changeset data as a stream input
-    StreamInputFunc input = make_stream_input(cs.data(), cs.size());
+    StreamInputFunc input = make_stream_input(cs.bytes());
 
     Changeset::apply_stream(target, std::move(input),
                             [](ConflictType, const ChangesetIterator&) {
@@ -481,14 +481,14 @@ TEST_F(ChangesetTest, ApplyStreamV2WithFlags) {
     db_.execute("UPDATE items SET quantity = 100 WHERE id = 1");
 
     Changeset cs = session.changeset();
-    auto input = make_stream_input(cs.data(), cs.size());
+    auto input = make_stream_input(cs.bytes());
 
     Changeset::apply_v2_stream(
         target, std::move(input),
         [](ConflictType, const ChangesetIterator&) {
             return ChangesetAction::Replace;
         },
-        0);
+        ApplyFlags{});
 
     auto qty =
         target.query_value<int64_t>("SELECT quantity FROM items WHERE id = 1");
@@ -504,23 +504,22 @@ TEST_F(ChangesetTest, ConcatStream) {
     db_.execute("INSERT INTO items VALUES (4, 'B', 2)");
     Changeset cs2 = session.changeset();
 
-    auto input_a = make_stream_input(cs1.data(), cs1.size());
-    auto input_b = make_stream_input(cs2.data(), cs2.size());
+    auto input_a = make_stream_input(cs1.bytes());
+    auto input_b = make_stream_input(cs2.bytes());
 
-    std::vector<uint8_t> out;
-    StreamOutputFunc output = [&](const void* data, int size) -> int {
-        auto* bytes = static_cast<const uint8_t*>(data);
-        out.insert(out.end(), bytes, bytes + size);
+    std::vector<std::byte> out;
+    StreamOutputFunc output = [&](std::span<const std::byte> data) -> int {
+        out.insert(out.end(), data.begin(), data.end());
         return 0;
     };
 
     Changeset::concat_stream(std::move(input_a), std::move(input_b), output);
 
-    // Create a non-owning changeset from the concatenated output and verify
-    auto* merged_data = sqlite3_malloc(out.size());
+    // Create a changeset from the concatenated output and verify
+    auto* merged_data = sqlite3_malloc(static_cast<int>(out.size()));
     std::memcpy(merged_data, out.data(), out.size());
     Changeset merged(merged_data, static_cast<int>(out.size()));
-    auto iter = merged.begin();
+    auto iter = merged.changes();
     int count = 0;
     while (iter.next()) {
         count++;
@@ -535,12 +534,11 @@ TEST_F(ChangesetTest, InvertStream) {
     db_.execute("INSERT INTO items VALUES (3, 'InvertStream', 50)");
 
     Changeset cs = session.changeset();
-    auto input = make_stream_input(cs.data(), cs.size());
+    auto input = make_stream_input(cs.bytes());
 
-    std::vector<uint8_t> out;
-    StreamOutputFunc output = [&](const void* data, int size) -> int {
-        auto* bytes = static_cast<const uint8_t*>(data);
-        out.insert(out.end(), bytes, bytes + size);
+    std::vector<std::byte> out;
+    StreamOutputFunc output = [&](std::span<const std::byte> data) -> int {
+        out.insert(out.end(), data.begin(), data.end());
         return 0;
     };
 
@@ -549,7 +547,7 @@ TEST_F(ChangesetTest, InvertStream) {
 
     // The inverted stream should produce a valid changeset that undoes the
     // insert
-    auto* inv_data = sqlite3_malloc(out.size());
+    auto* inv_data = sqlite3_malloc(static_cast<int>(out.size()));
     std::memcpy(inv_data, out.data(), out.size());
     Changeset inverted(inv_data, static_cast<int>(out.size()));
 
@@ -567,7 +565,7 @@ TEST_F(ChangesetTest, IteratorFromStream) {
     db_.execute("INSERT INTO items VALUES (3, 'StreamIter', 50)");
 
     Changeset cs = session.changeset();
-    auto input = make_stream_input(cs.data(), cs.size());
+    auto input = make_stream_input(cs.bytes());
 
     auto iter = ChangesetIterator::from_stream(std::move(input));
     ASSERT_TRUE(iter.next());
@@ -611,7 +609,7 @@ TEST_F(ChangesetTest, ApplyV2IgnoresNoop) {
             conflict_count++;
             return ChangesetAction::Omit;
         },
-        static_cast<int>(ApplyFlag::IgnoreNoop));
+        ApplyFlag::IgnoreNoop);
 
     EXPECT_EQ(conflict_count, 0);
     // The change was applied — quantity should now be 42.
@@ -783,7 +781,7 @@ TEST_F(ChangesetTest, ApplyV2WithNoSavepoint) {
         [](ConflictType, const ChangesetIterator&) -> ChangesetAction {
             return ChangesetAction::Abort;
         },
-        static_cast<int>(ApplyFlag::NoSavepoint));
+        ApplyFlag::NoSavepoint);
 
     auto count = target.query_value<int64_t>("SELECT COUNT(*) FROM items");
     EXPECT_EQ(*count, 2);
@@ -827,7 +825,8 @@ TEST_F(ChangesetTest, ApplyV2InvertViaInvertMethod) {
 
 TEST_F(ChangesetTest, IteratorFromStreamError) {
     // Create a streaming input that returns an error
-    StreamInputFunc error_input = [](void*, int) -> int {
+    StreamInputFunc error_input = [](std::span<std::byte>,
+                                     std::size_t&) -> int {
         return 1; // Signal error
     };
 

@@ -2,7 +2,9 @@
 
 #include "sqlitex_export.h"
 
+#include "sqlitex/concepts.h"
 #include "sqlitex/error.h"
+#include "sqlitex/flags.h"
 
 #include <chrono>
 #include <cstdint>
@@ -25,7 +27,7 @@ class PrefetchHandle;
 // BcvfsConfig — configuration keys
 // ============================================================================
 
-enum class BcvfsConfig {
+enum class BcvfsConfig : int {
     CacheSize = 1,         // SQLITE_BCV_CACHESIZE: Max cache size in bytes
     NRequest = 2,          // SQLITE_BCV_NREQUEST: Max concurrent HTTP requests
     HttpTimeout = 3,       // SQLITE_BCV_HTTPTIMEOUT: HTTP timeout in seconds
@@ -39,6 +41,7 @@ enum class BcvfsConfig {
 // ============================================================================
 
 enum class BcvfsLogFlag : int {
+    None = 0,
     Http = 0x0001,
     Upload = 0x0002,
     Cleanup = 0x0004,
@@ -46,6 +49,11 @@ enum class BcvfsLogFlag : int {
     HttpRetry = 0x0010,
     All = 0x001F,
 };
+
+template <>
+struct EnableBitmaskOperators<BcvfsLogFlag> : std::true_type {};
+
+using BcvfsLogFlags = Flags<BcvfsLogFlag>;
 
 // ============================================================================
 // BcvfsAttachFlag — bitmask values for Bcvfs::attach()
@@ -56,6 +64,11 @@ enum class BcvfsAttachFlag : int {
     Secure = 0x0001,      // SQLITE_BCV_ATTACH_SECURE
     IfNotExists = 0x0002, // SQLITE_BCV_ATTACH_IFNOT
 };
+
+template <>
+struct EnableBitmaskOperators<BcvfsAttachFlag> : std::true_type {};
+
+using BcvfsAttachFlags = Flags<BcvfsAttachFlag>;
 
 // ============================================================================
 // BcvfsStorage — cloud storage backend type
@@ -81,7 +94,7 @@ using BcvfsLogCallback = std::function<void(std::string_view message)>;
 
 /// Log callback that also receives the SQLITE_BCV_LOG_* event mask.
 using BcvfsMaskedLogCallback =
-    std::function<void(int mask, std::string_view message)>;
+    std::function<void(BcvfsLogFlags mask, std::string_view message)>;
 
 /// Busy callback for upload operations.
 /// Return a duration to wait before retrying, or nullopt to cancel.
@@ -100,6 +113,11 @@ class SQLITEX_EXPORT Bcvfs {
     explicit Bcvfs(std::string_view cache_dir,
                    std::string_view vfs_name = "bcvfs");
 
+    template <FilesystemPath Path>
+    explicit Bcvfs(const Path& cache_dir, std::string_view vfs_name = "bcvfs")
+        : Bcvfs(detail::path_to_utf8(cache_dir), vfs_name) {
+    }
+
     ~Bcvfs();
 
     // Move-only
@@ -117,11 +135,11 @@ class SQLITEX_EXPORT Bcvfs {
     }
 
     /// The VFS name to use in Database::open() calls.
-    const std::string& vfs_name() const noexcept {
+    [[nodiscard]] const std::string& vfs_name() const noexcept {
         return vfs_name_;
     }
 
-    sqlite3_bcvfs* handle() noexcept {
+    [[nodiscard]] sqlite3_bcvfs* handle() noexcept {
 #ifdef SQLITEX_HAS_BCVFS
         return bcvfs_;
 #else
@@ -131,8 +149,8 @@ class SQLITEX_EXPORT Bcvfs {
 
     // === Configuration ===
 
-    /// Set a raw SQLITE_BCV_* configuration option.
-    Bcvfs& config(int op, int64_t val);
+    /// Set a SQLITE_BCV_* configuration option.
+    Bcvfs& config(BcvfsConfig op, int64_t val);
 
     /// Set a configuration value.
     Bcvfs& set_cache_size(int64_t bytes);
@@ -146,10 +164,9 @@ class SQLITEX_EXPORT Bcvfs {
 
     void set_auth_callback(BcvfsAuthCallback cb);
     void set_log_callback(BcvfsLogCallback cb,
-                          int mask = static_cast<int>(BcvfsLogFlag::All));
-    void set_masked_log_callback(
-        BcvfsMaskedLogCallback cb,
-        int mask = static_cast<int>(BcvfsLogFlag::All));
+                          BcvfsLogFlags mask = BcvfsLogFlag::All);
+    void set_masked_log_callback(BcvfsMaskedLogCallback cb,
+                                 BcvfsLogFlags mask = BcvfsLogFlag::All);
 
     // === Container Management ===
 
@@ -158,10 +175,10 @@ class SQLITEX_EXPORT Bcvfs {
     /// @param account   Storage account name
     /// @param container Container name
     /// @param alias     Local alias (the path prefix used in Database::open())
-    /// @param flags     Bitmask of BcvfsAttachFlag values (default: 0)
+    /// @param flags     Bitmask of BcvfsAttachFlag values (default: None)
     void attach(std::string_view storage, std::string_view account,
                 std::string_view container, std::string_view alias,
-                int flags = 0);
+                BcvfsAttachFlags flags = BcvfsAttachFlag::None);
 
     /// Detach a container.
     void detach(std::string_view alias);
@@ -186,7 +203,7 @@ class SQLITEX_EXPORT Bcvfs {
     void revert(std::string_view container);
 
     /// Check if this VFS is running in daemon mode.
-    bool is_daemon() noexcept;
+    [[nodiscard]] bool is_daemon() const noexcept;
 
     /// Register introspection virtual tables on a database connection.
     void register_vtab(Database& db);
@@ -194,8 +211,8 @@ class SQLITEX_EXPORT Bcvfs {
     // === Prefetch ===
 
     /// Create a prefetch handle.
-    PrefetchHandle prefetch(std::string_view container,
-                            std::string_view db_name);
+    [[nodiscard]] PrefetchHandle prefetch(std::string_view container,
+                                          std::string_view db_name);
 
     private:
 #ifdef SQLITEX_HAS_BCVFS

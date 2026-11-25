@@ -3,10 +3,11 @@
 #include "sqlitex_export.h"
 
 #include "sqlitex/changeset.h"
+#include "sqlitex/concepts.h"
 #include "sqlitex/detail/session_api.h"
 
-#include <cstdint>
-#include <vector>
+#include <cstddef>
+#include <span>
 
 #ifdef SQLITEX_HAS_SESSION
 
@@ -27,19 +28,23 @@ class SQLITEX_EXPORT Rebaser {
     Rebaser(const Rebaser&) = delete;
     Rebaser& operator=(const Rebaser&) = delete;
 
-    explicit operator bool() const noexcept {
+    [[nodiscard]] explicit operator bool() const noexcept {
         return rebaser_ != nullptr;
     }
-    sqlite3_rebaser* handle() noexcept {
+    [[nodiscard]] sqlite3_rebaser* handle() noexcept {
         return rebaser_;
     }
 
     /// Configure the rebaser with rebase metadata produced by
     /// Changeset::apply_v2 / apply_v3 (or their streaming counterparts).
-    void configure(const void* data, int size);
+    void configure(std::span<const std::byte> rebase_data);
 
-    /// Convenience overload taking a byte vector from apply_v2/v3 rebase_out.
-    void configure(const std::vector<uint8_t>& rebase_data);
+    template <ConstByteRange R>
+        requires(
+            !std::same_as<std::remove_cvref_t<R>, std::span<const std::byte>>)
+    void configure(const R& rebase_data) {
+        configure(to_const_bytes(rebase_data));
+    }
 
     /// Rebase a changeset according to previously configured rebase metadata.
     [[nodiscard]] Changeset rebase(const Changeset& cs);

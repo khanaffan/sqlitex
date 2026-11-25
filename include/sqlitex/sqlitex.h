@@ -2,7 +2,9 @@
 
 #include "sqlitex_export.h"
 
-// Core
+// Core & C++23 utilities
+#include "sqlitex/concepts.h"
+#include "sqlitex/flags.h"
 #include "sqlitex/error.h"
 #include "sqlitex/sqlite.h"
 #include "sqlitex/value.h"
@@ -10,6 +12,7 @@
 #include "sqlitex/statement.h"
 #include "sqlitex/backup.h"
 #include "sqlitex/snapshot.h"
+#include "sqlitex/format.h"
 
 // Session + changeset
 #ifdef SQLITEX_HAS_SESSION

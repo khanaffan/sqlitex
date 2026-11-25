@@ -20,7 +20,7 @@ TEST(SqliteGlobalTest, VersionAndCompileOptions) {
     EXPECT_EQ(libversion_number(), 3054001);
     EXPECT_EQ(libversion(), "3.54.1");
     EXPECT_FALSE(sourceid().empty());
-    EXPECT_GE(threadsafe(), 1);
+    EXPECT_NE(threadsafe(), ThreadingMode::SingleThread);
 
     EXPECT_TRUE(compileoption_used("ENABLE_SESSION"));
     EXPECT_TRUE(compileoption_used("ENABLE_PREUPDATE_HOOK"));

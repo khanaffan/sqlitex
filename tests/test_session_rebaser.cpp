@@ -65,19 +65,19 @@ TEST(SessionAdvancedTest, RebaserAndApplyV3Stream) {
 
     // Apply cs_remote to db1 via apply_v3_stream, omitting on DATA conflict
     // and capturing rebase metadata.
-    std::vector<uint8_t> rebase_data;
+    std::vector<std::byte> rebase_data;
     size_t read_pos = 0;
-    const auto* remote_bytes = static_cast<const uint8_t*>(cs_remote.data());
-    const size_t remote_size = static_cast<size_t>(cs_remote.size());
+    auto remote_bytes = cs_remote.bytes();
 
-    auto stream_in = [&](void* buf, int& n) -> int {
-        size_t avail = remote_size - read_pos;
-        size_t to_copy = std::min<size_t>(avail, static_cast<size_t>(n));
+    auto stream_in = [&](std::span<std::byte> buf,
+                         std::size_t& bytes_read) -> int {
+        size_t avail = remote_bytes.size() - read_pos;
+        size_t to_copy = std::min<size_t>(avail, buf.size());
         if (to_copy > 0) {
-            std::memcpy(buf, remote_bytes + read_pos, to_copy);
+            std::memcpy(buf.data(), remote_bytes.data() + read_pos, to_copy);
             read_pos += to_copy;
         }
-        n = static_cast<int>(to_copy);
+        bytes_read = to_copy;
         return SQLITE_OK;
     };
 
@@ -94,7 +94,7 @@ TEST(SessionAdvancedTest, RebaserAndApplyV3Stream) {
             ++filter_count;
             return true;
         },
-        static_cast<ApplyFlags>(ApplyFlag::NoUpdateLoop), &rebase_data);
+        ApplyFlag::NoUpdateLoop, &rebase_data);
 
     EXPECT_EQ(filter_count, 1);
     EXPECT_EQ(conflict_count, 1);
@@ -117,27 +117,27 @@ TEST(SessionAdvancedTest, RebaserAndApplyV3Stream) {
     EXPECT_FALSE(rebaser); // NOLINT(bugprone-use-after-move)
     ASSERT_TRUE(rebaser2);
 
-    std::vector<uint8_t> streamed_rebased;
+    std::vector<std::byte> streamed_rebased;
     size_t local_pos = 0;
-    const auto* local_bytes = static_cast<const uint8_t*>(cs_local.data());
-    const size_t local_size = static_cast<size_t>(cs_local.size());
+    auto local_bytes = cs_local.bytes();
     rebaser2.rebase_stream(
-        [&](void* buf, int& n) -> int {
-            size_t avail = local_size - local_pos;
-            size_t to_copy = std::min<size_t>(avail, static_cast<size_t>(n));
+        [&](std::span<std::byte> buf, std::size_t& bytes_read) -> int {
+            size_t avail = local_bytes.size() - local_pos;
+            size_t to_copy = std::min<size_t>(avail, buf.size());
             if (to_copy > 0) {
-                std::memcpy(buf, local_bytes + local_pos, to_copy);
+                std::memcpy(buf.data(), local_bytes.data() + local_pos,
+                            to_copy);
                 local_pos += to_copy;
             }
-            n = static_cast<int>(to_copy);
+            bytes_read = to_copy;
             return SQLITE_OK;
         },
-        [&](const void* data, int n) -> int {
-            const auto* p = static_cast<const uint8_t*>(data);
-            streamed_rebased.insert(streamed_rebased.end(), p, p + n);
+        [&](std::span<const std::byte> data) -> int {
+            streamed_rebased.insert(streamed_rebased.end(), data.begin(),
+                                    data.end());
             return SQLITE_OK;
         });
-    EXPECT_EQ(static_cast<int>(streamed_rebased.size()), rebased.size());
+    EXPECT_EQ(streamed_rebased.size(), rebased.size());
 
     // Applying the rebased changeset to db2 succeeds with zero conflicts!
     int db2_conflicts = 0;
@@ -147,7 +147,7 @@ TEST(SessionAdvancedTest, RebaserAndApplyV3Stream) {
             ++db2_conflicts;
             return ChangesetAction::Abort;
         },
-        0);
+        ApplyFlags{});
     EXPECT_EQ(db2_conflicts, 0);
     EXPECT_EQ(db2.query_value<std::string>("SELECT a FROM kv WHERE id = 1;"),
               "localA");
@@ -174,16 +174,16 @@ TEST(ChangegroupAdvancedTest, ProgrammaticBuilderAndPatchsetMode) {
 
     const uint8_t blob_data[] = {0xDE, 0xAD, 0xBE, 0xEF};
     cg.change_begin(ChangeOperation::Insert, "items");
-    cg.change_int64(true, 0, 101);
-    cg.change_double(true, 1, 3.25);
-    cg.change_text(true, 2, "built");
-    cg.change_blob(true, 3, blob_data, sizeof(blob_data));
-    cg.change_null(true, 4);
+    cg.change_int64(ChangeRow::New, 0, 101);
+    cg.change_double(ChangeRow::New, 1, 3.25);
+    cg.change_text(ChangeRow::New, 2, "built");
+    cg.change_blob(ChangeRow::New, 3, blob_data);
+    cg.change_null(ChangeRow::New, 4);
     cg.change_finish(false);
 
     // Also test discarding a change
     cg.change_begin(ChangeOperation::Insert, "items");
-    cg.change_int64(true, 0, 999);
+    cg.change_int64(ChangeRow::New, 0, 999);
     cg.change_finish(true);
 
     Changeset built = cg.output();
@@ -210,7 +210,7 @@ TEST(ChangegroupAdvancedTest, ProgrammaticBuilderAndPatchsetMode) {
     EXPECT_TRUE(pg.set_patchset_mode(true));
     EXPECT_TRUE(pg.is_patchset_mode());
 
-    auto it = built.begin();
+    auto it = built.changes();
     ASSERT_TRUE(it.next());
     pg.add_change(it);
     Patchset ps = pg.output_patchset();
