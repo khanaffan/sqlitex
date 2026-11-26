@@ -2,7 +2,7 @@ vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO khanaffan/sqlitex
     REF "v${VERSION}"
-    SHA512 0 # Run with --head or update SHA512 after publishing tag v${VERSION}
+    SHA512 52e3c00f584f8343d83185b5cfcea9ebe86df90adf45a8e9ed47e736414b60586bbd60cde19df0bc61660eecdb919a6dedac2e612c395f92f0faa481878f299c
     HEAD_REF main
 )
 

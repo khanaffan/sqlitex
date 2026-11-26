@@ -149,14 +149,11 @@ Or install via the included vcpkg overlay port (`ports/sqlitex/`):
 
 ```bash
 # Default (includes session support, zero external dependencies)
-vcpkg install sqlitex --head --overlay-ports=./ports
+vcpkg install sqlitex --overlay-ports=./ports
 
 # With CloudSQLite / bcVFS (pulls curl + openssl) and blockcachevfsd daemon
-vcpkg install "sqlitex[bcvfs,tools]" --head --overlay-ports=./ports
+vcpkg install "sqlitex[bcvfs,tools]" --overlay-ports=./ports
 ```
-
-Once a release tag (e.g. `v0.1.0`) is published, update `SHA512` in
-`ports/sqlitex/portfile.cmake` so `--head` is no longer needed.
 
 ### Running Tests, Examples & Formatting
 
