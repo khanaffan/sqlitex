@@ -21,11 +21,16 @@ cloud-backed storage.
   declarations and constants live in `sqlitex/detail/sqlite3_fwd.h` and
   `sqlitex/detail/session_api.h`.
 - **Safe Move-Only RAII & Typed Exceptions** — every handle (`Database`,
-  `Statement`, `BlobIO`, `Backup`, `Snapshot`, `Session`, `Changegroup`,
-  `Rebaser`, `Bcvfs`, `PrefetchHandle`, `BcvClient`) is move-only; `Transaction`
-  and `Savepoint` roll back automatically on scope exit unless explicitly
-  committed/released; failures throw typed `sqlitex::Error` subclasses (or
-  return `sqlitex::Expected<T>` from `try_*` entry points).
+  `Statement`, `CachedStatement`, `StatementCache`, `BlobIO`, `Backup`,
+  `Snapshot`, `Session`, `Changegroup`, `Rebaser`, `Bcvfs`, `PrefetchHandle`,
+  `BcvClient`) is move-only; `Transaction` and `Savepoint` roll back
+  automatically on scope exit unless explicitly committed/released; failures
+  throw typed `sqlitex::Error` subclasses (or return `sqlitex::Expected<T>` from
+  `try_*` entry points).
+- **Thread-Safe LRU Statement Cache** — standalone `StatementCache` and built-in
+  `Database::prepare_cached()` with RAII `CachedStatement` leases (auto-reset
+  and binding cleanup on drop), mutex synchronization, re-entrant checkout
+  support, and automatic `ScopedPolicy` bypass.
 - **Complete CloudSQLite Support** — wraps `blockcachevfs.h` (`Bcvfs`,
   `PrefetchHandle`), `bcvutil.h` (`BcvClient`), and `bcvmodule.h`
   (`BcvContainer`, `BcvJob`, `BcvRequest`), plus builds the `blockcachevfsd`
@@ -144,6 +149,7 @@ include/sqlitex/
   value.h                Owned Value & non-owning ValueRef
   database.h             Database, Transaction, Savepoint, hooks, WAL, serialize
   statement.h            Prepared Statement, RowRange/TypedRowRange, scanstatus
+  statement_cache.h      Thread-safe LRU StatementCache & RAII CachedStatement
   backup.h               Online Backup API
   snapshot.h             WAL Snapshot API (with <=>)
   blobio.h               Incremental BLOB I/O
@@ -220,8 +226,12 @@ tx.commit();
 
 Additional `Database` capabilities:
 - **Non-throwing APIs**: `Database::try_open()`, `db.try_prepare()`,
-  `stmt.try_step()`, `stmt.try_execute()`, and `Snapshot::try_get()` return
-  `sqlitex::Expected<T>` (`std::expected<T, Error>`).
+  `db.try_prepare_cached()`, `stmt.try_step()`, `stmt.try_execute()`, and
+  `Snapshot::try_get()` return `sqlitex::Expected<T>` (`std::expected<T, Error>`).
+- **Built-in & standalone statement cache**: `db.prepare_cached()`,
+  `db.try_prepare_cached()`, `db.statement_cache()`,
+  `db.set_statement_cache_capacity()`, `db.clear_statement_cache()`, or
+  standalone `sqlitex::StatementCache`.
 - **Serialization**: `serialize()` returns an RAII `SerializedDatabase`;
   `deserialize()` loads an image into a schema.
 - **WAL control**: `wal_checkpoint()`, `wal_checkpoint_v2()` (returning
@@ -240,6 +250,46 @@ Additional `Database` capabilities:
   `db_cacheflush()`, `db_release_memory()`, `next_stmt()`,
   `active_statements()`, `file_control()`, `interrupt()`, `error_offset()`,
   `system_errno()`.
+
+### Statement Cache (`statement_cache.h`)
+
+Applications can reuse prepared statements either through `Database`'s built-in
+cache (`prepare_cached()` / `try_prepare_cached()`) or via standalone
+`StatementCache` instances with independent capacities and lifetimes:
+
+```cpp
+// Built-in per-connection LRU cache (default capacity: 64)
+db.set_statement_cache_capacity(128);
+{
+    sqlitex::CachedStatement stmt =
+        db.prepare_cached("SELECT id, name FROM items WHERE id = ?");
+    stmt->bind(1, 42);
+    for (auto&& [id, name] : stmt->rows<int64_t, std::string_view>()) {
+        // ...
+    }
+    // Scope exit automatically resets the statement, clears bindings, and
+    // returns it to the cache (even after early break or step exceptions).
+}
+
+// Or create an application-managed StatementCache with convenience helpers
+sqlitex::StatementCache cache(db, /*capacity=*/32);
+cache.execute("INSERT INTO items (id, name) VALUES (?, ?)", 99, "widget");
+auto name = cache.query_value<std::string>(
+    "SELECT name FROM items WHERE id = ?", 99);
+auto stats = cache.stats(); // hits, misses, evictions, bypasses
+```
+
+Key properties:
+- **Thread-safe bounded LRU**: Mutex-synchronized with all SQLite calls
+  (`prepare`, `reset`, `clear_bindings`, `finalize`) performed outside the lock.
+- **Re-entrant & concurrent checkouts**: Multiple simultaneous checkouts of the
+  same SQL receive distinct `sqlite3_stmt*` handles and pool cleanly on return.
+- **`ScopedPolicy` safety**: While a `ScopedPolicy` is active on the connection,
+  cache lookups and insertions are automatically bypassed so SQLite's authorizer
+  always runs and redacted bytecode never leaks past the policy scope.
+- **Lease controls**: Call `stmt.discard()` to skip returning to cache,
+  `stmt.release()` to detach an owned `Statement`, or `cache.clear()` to drop
+  idle entries and prevent in-flight leases from re-entering the cache.
 
 ### Incremental BLOB I/O, Online Backup & WAL Snapshots
 

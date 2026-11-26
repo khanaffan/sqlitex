@@ -11,6 +11,7 @@ set(TEST_SOURCES
     test_database_advanced.cpp
     test_backup_snapshot.cpp
     test_statement.cpp
+    test_statement_cache.cpp
     test_statement_value_vtab.cpp
     test_function.cpp
     test_virtual_table.cpp

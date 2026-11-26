@@ -8,6 +8,7 @@
 #include "sqlitex/flags.h"
 #include "sqlitex/function.h"
 #include "sqlitex/statement.h"
+#include "sqlitex/statement_cache.h"
 #include "sqlitex/value.h"
 
 #include <chrono>
@@ -60,22 +61,8 @@ struct EnableBitmaskOperators<OpenFlag> : std::true_type {};
 using OpenFlags = Flags<OpenFlag>;
 
 // ============================================================================
-// Prepare flags, Transaction modes, Checkpoint modes, Serialize/Deserialize
+// Transaction modes, Checkpoint modes, Serialize/Deserialize
 // ============================================================================
-
-enum class PrepareFlag : unsigned int {
-    None = 0,
-    Persistent = SQLITE_PREPARE_PERSISTENT,
-    Normalize = SQLITE_PREPARE_NORMALIZE,
-    NoVtab = SQLITE_PREPARE_NO_VTAB,
-    DontLog = SQLITE_PREPARE_DONT_LOG,
-    FromDdl = SQLITE_PREPARE_FROM_DDL,
-};
-
-template <>
-struct EnableBitmaskOperators<PrepareFlag> : std::true_type {};
-
-using PrepareFlags = Flags<PrepareFlag>;
 
 enum class TransactionMode {
     Deferred,
@@ -451,6 +438,40 @@ class SQLITEX_EXPORT Database {
     [[nodiscard]] Expected<Statement> try_prepare(
         std::string_view sql, PrepareFlags flags = PrepareFlag::None,
         std::string_view* tail = nullptr);
+
+    // === Statement Cache ===
+
+    /// Obtain a cached (or freshly prepared) single SQL statement using this
+    /// connection's built-in LRU statement cache. Automatically bypasses the
+    /// cache while a ScopedPolicy is active.
+    [[nodiscard]] CachedStatement prepare_cached(
+        std::string_view sql, PrepareFlags flags = PrepareFlag::None);
+
+    /// Non-throwing cached prepare returning
+    /// std::expected<CachedStatement, Error>.
+    [[nodiscard]] Expected<CachedStatement> try_prepare_cached(
+        std::string_view sql, PrepareFlags flags = PrepareFlag::None);
+
+    /// Access this connection's built-in thread-safe StatementCache.
+    [[nodiscard]] StatementCache& statement_cache();
+    [[nodiscard]] const StatementCache& statement_cache() const;
+
+    /// Configure the maximum number of idle statements retained by this
+    /// connection's built-in cache (0 disables caching and clears entries).
+    void set_statement_cache_capacity(std::size_t capacity);
+
+    /// Current capacity of this connection's built-in statement cache.
+    [[nodiscard]] std::size_t statement_cache_capacity() const noexcept;
+
+    /// Clear all idle cached statements on this connection and invalidate
+    /// in-flight leases from re-entering the cache.
+    void clear_statement_cache() noexcept;
+
+    /// True if a ScopedPolicy authorization guard is currently active on this
+    /// connection.
+    [[nodiscard]] bool has_active_policy() const noexcept {
+        return policy_ != nullptr;
+    }
 
     // === Custom SQL Functions ===
 
@@ -889,10 +910,14 @@ class SQLITEX_EXPORT Database {
     };
     // Declare hooks_ BEFORE db_holder_ so hooks remain alive while
     // sqlite3_close_v2() runs (e.g., for SQLITE_TRACE_CLOSE callbacks).
+    // Declare stmt_cache_ AFTER db_holder_ so cached statements are finalized
+    // before sqlite3_close_v2() runs on destruction.
     std::unique_ptr<HookState, HookStateDeleter> hooks_{};
     std::unique_ptr<sqlite3, Deleter> db_holder_{};
+    StatementCache stmt_cache_{};
 
     HookState& ensure_hooks();
+    StatementCache& ensure_statement_cache();
 
     friend struct detail::PolicyAccess;
     /// Innermost active ScopedPolicy; guards must not outlive the connection.

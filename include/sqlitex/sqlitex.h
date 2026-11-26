@@ -10,6 +10,7 @@
 #include "sqlitex/value.h"
 #include "sqlitex/database.h"
 #include "sqlitex/statement.h"
+#include "sqlitex/statement_cache.h"
 #include "sqlitex/backup.h"
 #include "sqlitex/snapshot.h"
 #include "sqlitex/format.h"

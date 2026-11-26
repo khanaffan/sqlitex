@@ -31,6 +31,20 @@ class Database;
 // Statement enums & scan-status descriptors
 // ============================================================================
 
+enum class PrepareFlag : unsigned int {
+    None = 0,
+    Persistent = SQLITE_PREPARE_PERSISTENT,
+    Normalize = SQLITE_PREPARE_NORMALIZE,
+    NoVtab = SQLITE_PREPARE_NO_VTAB,
+    DontLog = SQLITE_PREPARE_DONT_LOG,
+    FromDdl = SQLITE_PREPARE_FROM_DDL,
+};
+
+template <>
+struct EnableBitmaskOperators<PrepareFlag> : std::true_type {};
+
+using PrepareFlags = Flags<PrepareFlag>;
+
 enum class StmtStatusOp : int {
     FullscanStep = SQLITE_STMTSTATUS_FULLSCAN_STEP,
     Sort = SQLITE_STMTSTATUS_SORT,
@@ -353,6 +367,7 @@ class SQLITEX_EXPORT Statement {
     Database* db_ = nullptr;
 
     friend class Database;
+    friend class StatementCache;
 };
 
 // ============================================================================

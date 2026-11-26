@@ -416,11 +416,16 @@ Database::~Database() {
 }
 
 Database::Database(Database&& other) noexcept
-    : hooks_(std::move(other.hooks_)), db_holder_(std::move(other.db_holder_)) {
+    : hooks_(std::move(other.hooks_)),
+      db_holder_(std::move(other.db_holder_)),
+      stmt_cache_(std::move(other.stmt_cache_)) {
     assert(other.policy_ == nullptr &&
            "Database moved while a ScopedPolicy is active");
     if (hooks_) {
         hooks_->owner = this;
+    }
+    if (stmt_cache_) {
+        stmt_cache_.rebind_database(*this);
     }
 }
 
@@ -431,8 +436,12 @@ Database& Database::operator=(Database&& other) noexcept {
         close();
         hooks_ = std::move(other.hooks_);
         db_holder_ = std::move(other.db_holder_);
+        stmt_cache_ = std::move(other.stmt_cache_);
         if (hooks_) {
             hooks_->owner = this;
+        }
+        if (stmt_cache_) {
+            stmt_cache_.rebind_database(*this);
         }
     }
     return *this;
@@ -459,6 +468,7 @@ Expected<Database> Database::try_open(std::string_view path, OpenFlags flags,
 
     Database db;
     db.db_holder_.reset(raw);
+    (void)db.ensure_statement_cache();
     return db;
 }
 
@@ -485,15 +495,74 @@ void Database::open(std::string_view path, OpenFlags flags,
     }
 
     db_holder_.reset(raw);
+    (void)ensure_statement_cache();
 }
 
 void Database::close() noexcept {
     assert(policy_ == nullptr &&
            "Database closed while a ScopedPolicy is active");
+    // Finalize all cached statements BEFORE closing sqlite3*.
+    if (stmt_cache_) {
+        stmt_cache_.clear();
+    }
     // Close the sqlite3* handle BEFORE releasing hooks_ so close trace hooks
     // can safely fire during sqlite3_close_v2().
     db_holder_.reset();
     hooks_.reset();
+}
+
+StatementCache& Database::ensure_statement_cache() {
+    if (!stmt_cache_) {
+        stmt_cache_ = StatementCache(*this, StatementCache::kDefaultCapacity);
+    }
+    return stmt_cache_;
+}
+
+CachedStatement Database::prepare_cached(std::string_view sql,
+                                         PrepareFlags flags) {
+    if (!db_holder_) {
+        throw MisuseError(ErrorCode::Misuse, "Database is not open");
+    }
+    return ensure_statement_cache().get(sql, flags);
+}
+
+Expected<CachedStatement> Database::try_prepare_cached(std::string_view sql,
+                                                       PrepareFlags flags) {
+    if (!db_holder_) {
+        return std::unexpected(
+            Error(ErrorCode::Misuse, "Database is not open"));
+    }
+    return ensure_statement_cache().try_get(sql, flags);
+}
+
+StatementCache& Database::statement_cache() {
+    return ensure_statement_cache();
+}
+
+const StatementCache& Database::statement_cache() const {
+    if (!stmt_cache_) {
+        throw MisuseError(ErrorCode::Misuse, "Database is not open");
+    }
+    return stmt_cache_;
+}
+
+void Database::set_statement_cache_capacity(std::size_t capacity) {
+    if (!stmt_cache_) {
+        stmt_cache_ = StatementCache(*this, capacity);
+        return;
+    }
+    stmt_cache_.set_capacity(capacity);
+}
+
+std::size_t Database::statement_cache_capacity() const noexcept {
+    return stmt_cache_ ? stmt_cache_.capacity()
+                       : StatementCache::kDefaultCapacity;
+}
+
+void Database::clear_statement_cache() noexcept {
+    if (stmt_cache_) {
+        stmt_cache_.clear();
+    }
 }
 
 // ============================================================================

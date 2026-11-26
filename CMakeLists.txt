@@ -106,6 +106,7 @@ set(SQLITEX_SOURCES
     src/sqlite.cpp
     src/database.cpp
     src/statement.cpp
+    src/statement_cache.cpp
     src/function.cpp
     src/backup.cpp
     src/snapshot.cpp
@@ -129,6 +130,7 @@ set(SQLITEX_HEADERS
     include/sqlitex/sqlite.h
     include/sqlitex/database.h
     include/sqlitex/statement.h
+    include/sqlitex/statement_cache.h
     include/sqlitex/function.h
     include/sqlitex/backup.h
     include/sqlitex/snapshot.h
