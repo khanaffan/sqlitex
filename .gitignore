@@ -27,10 +27,9 @@ CTestTestfile.cmake
 CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake
+CPackConfig.cmake
+CPackSourceConfig.cmake
 Makefile
-!CMakeLists.txt
-*.cmake
-!cmake/
 
 # Package files
 *.deb
@@ -51,6 +50,8 @@ core.*
 
 # Compiled examples and tests
 examples/basic_usage
+examples/statement_cache
+examples/scoped_policy
 examples/session_tracking
 examples/changeset_apply
 examples/changegroup_merge

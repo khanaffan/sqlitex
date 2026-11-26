@@ -1,7 +1,8 @@
 # Bundled SQLite3 amalgamation
-# Compiled as a static PIC library so it can be linked into both
-# static and shared builds of sqlitex.
-add_library(sqlite3_amalgamation STATIC
+# Compiled as a PIC OBJECT library so its object files are embedded directly
+# into sqlitex (for both static and shared builds) without installing or
+# exporting a separate sqlite3 library target.
+add_library(sqlite3_amalgamation OBJECT
     sqlite3.c
     sqlite3.h
 )
@@ -33,6 +34,12 @@ target_compile_options(sqlite3_amalgamation PRIVATE
     $<$<C_COMPILER_ID:MSVC>:/bigobj>
 )
 
+if(WIN32 AND BUILD_SHARED_LIBS)
+    target_compile_definitions(sqlite3_amalgamation PRIVATE
+        "SQLITE_API=__declspec(dllexport)"
+    )
+endif()
+
 set_target_properties(sqlite3_amalgamation PROPERTIES
     POSITION_INDEPENDENT_CODE ON
     C_STANDARD 11
@@ -40,5 +47,5 @@ set_target_properties(sqlite3_amalgamation PROPERTIES
 )
 
 target_include_directories(sqlite3_amalgamation
-    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
+    INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )

@@ -1,4 +1,5 @@
 #include "sqlitex/sqlite.h"
+#include "sqlitex/detail/blob.h"
 
 #include <sqlite3.h>
 
@@ -8,6 +9,14 @@
 #include <vector>
 
 namespace sqlitex {
+
+namespace detail {
+
+void free_sqlite_memory(void* p) noexcept {
+    sqlite3_free(p);
+}
+
+} // namespace detail
 
 // ============================================================================
 // Library Version, Compile Options & Error Strings

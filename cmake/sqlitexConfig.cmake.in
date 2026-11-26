@@ -1,0 +1,17 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+set(SQLITEX_HAS_SESSION @SQLITEX_HAS_SESSION_BOOL@)
+set(SQLITEX_HAS_BCVFS @SQLITEX_HAS_BCVFS_BOOL@)
+
+find_dependency(Threads)
+
+if(SQLITEX_HAS_BCVFS)
+    find_dependency(CURL)
+    find_dependency(OpenSSL)
+endif()
+
+include("${CMAKE_CURRENT_LIST_DIR}/sqlitexTargets.cmake")
+
+check_required_components(sqlitex)

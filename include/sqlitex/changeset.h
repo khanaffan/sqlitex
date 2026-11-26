@@ -6,6 +6,7 @@
 #include "sqlitex/error.h"
 #include "sqlitex/flags.h"
 
+#include "sqlitex/detail/blob.h"
 #include "sqlitex/detail/session_api.h"
 
 #include <cstddef>
@@ -198,7 +199,7 @@ class SQLITEX_EXPORT Changeset {
     private:
     struct Deleter {
         void operator()(void* p) const noexcept {
-            sqlite3_free(p);
+            detail::free_sqlite_memory(p);
         }
     };
 
@@ -270,7 +271,7 @@ class SQLITEX_EXPORT Patchset {
     private:
     struct Deleter {
         void operator()(void* p) const noexcept {
-            sqlite3_free(p);
+            detail::free_sqlite_memory(p);
         }
     };
 

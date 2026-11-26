@@ -1,0 +1,136 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 21,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "default",
+      "displayName": "Debug (Full)",
+      "description": "Debug build with Session, bcVFS, tests, and examples",
+      "binaryDir": "${sourceDir}/build/default",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "SQLITEX_BUILD_TESTS": "ON",
+        "SQLITEX_BUILD_EXAMPLES": "ON"
+      }
+    },
+    {
+      "name": "release",
+      "displayName": "Release (Full)",
+      "description": "Optimized Release build with Session, bcVFS, tests, and examples",
+      "binaryDir": "${sourceDir}/build/release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "SQLITEX_BUILD_TESTS": "ON",
+        "SQLITEX_BUILD_EXAMPLES": "ON"
+      }
+    },
+    {
+      "name": "minimal",
+      "displayName": "Release (Core SQLite only)",
+      "description": "Core SQLite wrapper with zero external dependencies (Session and bcVFS disabled)",
+      "binaryDir": "${sourceDir}/build/minimal",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "SQLITEX_SESSION": "OFF",
+        "SQLITEX_BCVFS": "OFF",
+        "SQLITEX_BUILD_TESTS": "ON",
+        "SQLITEX_BUILD_EXAMPLES": "ON"
+      }
+    },
+    {
+      "name": "shared",
+      "displayName": "Release (Shared Library)",
+      "description": "Shared library build with Session enabled and bcVFS disabled",
+      "binaryDir": "${sourceDir}/build/shared",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "BUILD_SHARED_LIBS": "ON",
+        "SQLITEX_BCVFS": "OFF",
+        "SQLITEX_BUILD_TESTS": "ON",
+        "SQLITEX_BUILD_EXAMPLES": "ON"
+      }
+    },
+    {
+      "name": "asan",
+      "displayName": "Debug (ASan + UBSan)",
+      "description": "AddressSanitizer and UndefinedBehaviorSanitizer build (Linux/macOS)",
+      "binaryDir": "${sourceDir}/build/asan",
+      "condition": {
+        "type": "notEquals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_FLAGS": "-fsanitize=address,undefined -fno-omit-frame-pointer",
+        "CMAKE_CXX_FLAGS": "-fsanitize=address,undefined -fno-omit-frame-pointer",
+        "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address,undefined",
+        "SQLITEX_BUILD_TESTS": "ON",
+        "SQLITEX_BUILD_EXAMPLES": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "default",
+      "configurePreset": "default"
+    },
+    {
+      "name": "release",
+      "configurePreset": "release"
+    },
+    {
+      "name": "minimal",
+      "configurePreset": "minimal"
+    },
+    {
+      "name": "shared",
+      "configurePreset": "shared"
+    },
+    {
+      "name": "asan",
+      "configurePreset": "asan"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "default",
+      "configurePreset": "default",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "release",
+      "configurePreset": "release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "minimal",
+      "configurePreset": "minimal",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "shared",
+      "configurePreset": "shared",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "asan",
+      "configurePreset": "asan",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

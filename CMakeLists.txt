@@ -1,17 +1,24 @@
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.21)
 project(sqlitex VERSION 0.1.0 LANGUAGES C CXX)
 
-set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_C_EXTENSIONS OFF)
+if(PROJECT_IS_TOP_LEVEL)
+    set(CMAKE_CXX_STANDARD 23)
+    set(CMAKE_CXX_STANDARD_REQUIRED ON)
+    set(CMAKE_C_EXTENSIONS OFF)
+endif()
+
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
 
 # ============================================================================
 # Options
 # ============================================================================
 option(SQLITEX_BCVFS "Build with bcvfs (Block Cache VFS) support" ON)
 option(SQLITEX_SESSION "Build with session/changeset support" ON)
-option(SQLITEX_BUILD_EXAMPLES "Build example programs" ON)
-option(SQLITEX_BUILD_TESTS "Build tests (uses Google Test via FetchContent)" ON)
+option(SQLITEX_BUILD_DAEMON "Build the blockcachevfsd daemon executable (requires SQLITEX_BCVFS)" ${PROJECT_IS_TOP_LEVEL})
+option(SQLITEX_BUILD_EXAMPLES "Build example programs" ${PROJECT_IS_TOP_LEVEL})
+option(SQLITEX_BUILD_TESTS "Build tests (uses Google Test via FetchContent)" ${PROJECT_IS_TOP_LEVEL})
+option(SQLITEX_INSTALL "Generate install targets and CMake package config" ${PROJECT_IS_TOP_LEVEL})
 option(SQLITEX_LINT "Enable clang-tidy static analysis during build" OFF)
 
 # ============================================================================
@@ -22,40 +29,42 @@ if(SQLITEX_LINT)
     if(CLANG_TIDY_EXE)
         message(STATUS "Found clang-tidy: ${CLANG_TIDY_EXE}")
         set(CMAKE_CXX_CLANG_TIDY
-            "${CLANG_TIDY_EXE};--config-file=${CMAKE_SOURCE_DIR}/.clang-tidy"
+            "${CLANG_TIDY_EXE};--config-file=${CMAKE_CURRENT_SOURCE_DIR}/.clang-tidy"
         )
     else()
         message(WARNING "SQLITEX_LINT=ON but clang-tidy not found")
     endif()
 endif()
 
-# clang-format target (always available if found)
-find_program(CLANG_FORMAT_EXE NAMES clang-format)
-if(CLANG_FORMAT_EXE)
-    message(STATUS "Found clang-format: ${CLANG_FORMAT_EXE}")
+# clang-format target (only for top-level builds)
+if(PROJECT_IS_TOP_LEVEL)
+    find_program(CLANG_FORMAT_EXE NAMES clang-format)
+    if(CLANG_FORMAT_EXE)
+        message(STATUS "Found clang-format: ${CLANG_FORMAT_EXE}")
 
-    # Collect all source files for formatting
-    file(GLOB_RECURSE FORMAT_SOURCES
-        ${CMAKE_SOURCE_DIR}/src/*.cpp
-        ${CMAKE_SOURCE_DIR}/include/sqlitex/*.h
-        ${CMAKE_SOURCE_DIR}/include/sqlitex/detail/*.h
-        ${CMAKE_SOURCE_DIR}/tests/*.cpp
-        ${CMAKE_SOURCE_DIR}/examples/*.cpp
-    )
+        # Collect all source files for formatting
+        file(GLOB_RECURSE FORMAT_SOURCES
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/include/sqlitex/*.h
+            ${CMAKE_CURRENT_SOURCE_DIR}/include/sqlitex/detail/*.h
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/examples/*.cpp
+        )
 
-    add_custom_target(clang-format
-        COMMAND ${CLANG_FORMAT_EXE} -i ${FORMAT_SOURCES}
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        COMMENT "Running clang-format on all source files"
-    )
+        add_custom_target(clang-format
+            COMMAND ${CLANG_FORMAT_EXE} -i ${FORMAT_SOURCES}
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+            COMMENT "Running clang-format on all source files"
+        )
 
-    add_custom_target(clang-format-check
-        COMMAND ${CLANG_FORMAT_EXE} --dry-run --Werror ${FORMAT_SOURCES}
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        COMMENT "Checking code formatting with clang-format"
-    )
-else()
-    message(STATUS "clang-format not found (format targets unavailable)")
+        add_custom_target(clang-format-check
+            COMMAND ${CLANG_FORMAT_EXE} --dry-run --Werror ${FORMAT_SOURCES}
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+            COMMENT "Checking code formatting with clang-format"
+        )
+    else()
+        message(STATUS "clang-format not found (format targets unavailable)")
+    endif()
 endif()
 
 # ============================================================================
@@ -64,11 +73,11 @@ endif()
 # SQLite3 is compiled from source as part of the library. This guarantees
 # session extension availability and eliminates external dependency on a
 # system SQLite3 installation.
-if(NOT EXISTS "${CMAKE_SOURCE_DIR}/third_party/sqlite3/sqlite3.c")
+if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/sqlite3/sqlite3.c")
     message(STATUS "SQLite3 amalgamation not found. Downloading...")
     file(DOWNLOAD
         "https://www.sqlite.org/2026/sqlite-amalgamation-3540100.zip"
-        "${CMAKE_BINARY_DIR}/sqlite-amalgamation.zip"
+        "${CMAKE_CURRENT_BINARY_DIR}/sqlite-amalgamation.zip"
         STATUS DOWNLOAD_STATUS
     )
     list(GET DOWNLOAD_STATUS 0 STATUS_CODE)
@@ -80,15 +89,15 @@ if(NOT EXISTS "${CMAKE_SOURCE_DIR}/third_party/sqlite3/sqlite3.c")
     endif()
     execute_process(
         COMMAND ${CMAKE_COMMAND} -E tar xf
-        "${CMAKE_BINARY_DIR}/sqlite-amalgamation.zip"
-        WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
+        "${CMAKE_CURRENT_BINARY_DIR}/sqlite-amalgamation.zip"
+        WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
     )
     file(GLOB SQLITE_AMALG_DIR
-        "${CMAKE_BINARY_DIR}/sqlite-amalgamation-*"
+        "${CMAKE_CURRENT_BINARY_DIR}/sqlite-amalgamation-*"
     )
     list(GET SQLITE_AMALG_DIR 0 AMALG_DIR)
     file(COPY "${AMALG_DIR}/sqlite3.c" "${AMALG_DIR}/sqlite3.h"
-        DESTINATION "${CMAKE_SOURCE_DIR}/third_party/sqlite3/"
+        DESTINATION "${CMAKE_CURRENT_SOURCE_DIR}/third_party/sqlite3/"
     )
     message(STATUS "SQLite3 amalgamation installed to third_party/sqlite3/")
 endif()
@@ -191,7 +200,11 @@ if(SQLITEX_BCVFS)
     if(BCVFS_SOURCE AND BCVFS_INCLUDE_DIR)
         message(STATUS "Found bcvfs source: ${BCVFS_SOURCE}")
         message(STATUS "Found bcvfs include: ${BCVFS_INCLUDE_DIR}")
-        list(APPEND SQLITEX_SOURCES
+        # bcVFS needs curl and openssl
+        find_package(CURL REQUIRED)
+        find_package(OpenSSL REQUIRED)
+
+        add_library(bcvfs_objects OBJECT
             ${BCVFS_SOURCE}
             ${BCVFS_INCLUDE_DIR}/bcvutil.c
             ${BCVFS_INCLUDE_DIR}/bcvmodule.c
@@ -199,9 +212,25 @@ if(SQLITEX_BCVFS)
             ${BCVFS_INCLUDE_DIR}/bcvencrypt.c
             ${BCVFS_INCLUDE_DIR}/bcvlog.c
         )
-        # bcVFS needs curl and openssl
-        find_package(CURL REQUIRED)
-        find_package(OpenSSL REQUIRED)
+        set_target_properties(bcvfs_objects PROPERTIES
+            POSITION_INDEPENDENT_CODE ON
+            C_EXTENSIONS OFF
+        )
+        target_include_directories(bcvfs_objects PRIVATE
+            ${BCVFS_INCLUDE_DIR}
+            ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sqlite3
+        )
+        target_link_libraries(bcvfs_objects PRIVATE
+            CURL::libcurl
+            OpenSSL::SSL
+            OpenSSL::Crypto
+        )
+        if(MSVC)
+            target_compile_definitions(bcvfs_objects PRIVATE
+                _CRT_SECURE_NO_WARNINGS
+                _CRT_NONSTDC_NO_WARNINGS
+            )
+        endif()
     else()
         message(WARNING
             "blockcachevfs.h/c not found. bcvfs support disabled. "
@@ -215,26 +244,46 @@ endif()
 # ============================================================================
 # Library target
 # ============================================================================
-add_library(sqlitex ${SQLITEX_SOURCES} ${SQLITEX_HEADERS})
+add_library(sqlitex
+    ${SQLITEX_SOURCES}
+    ${SQLITEX_HEADERS}
+    $<TARGET_OBJECTS:sqlite3_amalgamation>
+)
+add_library(sqlitex::sqlitex ALIAS sqlitex)
+
 target_compile_features(sqlitex PUBLIC cxx_std_23)
+set_target_properties(sqlitex PROPERTIES C_EXTENSIONS OFF)
+
+if(PROJECT_IS_TOP_LEVEL)
+    target_compile_options(sqlitex PRIVATE
+        $<$<CXX_COMPILER_ID:MSVC>:/W4 /wd4251 /wd4275>
+        $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic>
+    )
+endif()
 
 # DLL export/import support for Windows shared library builds
 include(GenerateExportHeader)
+set(SQLITEX_GENERATED_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/include")
 generate_export_header(sqlitex
     BASE_NAME SQLITEX
     EXPORT_MACRO_NAME SQLITEX_EXPORT
-    EXPORT_FILE_NAME ${CMAKE_CURRENT_BINARY_DIR}/sqlitex_export.h
+    EXPORT_FILE_NAME "${SQLITEX_GENERATED_INCLUDE_DIR}/sqlitex/sqlitex_export.h"
     STATIC_DEFINE SQLITEX_STATIC
 )
+
+if(NOT BUILD_SHARED_LIBS)
+    target_compile_definitions(sqlitex PUBLIC SQLITEX_STATIC)
+endif()
 
 target_include_directories(sqlitex
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
-        $<INSTALL_INTERFACE:include>
+        $<BUILD_INTERFACE:${SQLITEX_GENERATED_INCLUDE_DIR}>
+        $<BUILD_INTERFACE:${SQLITEX_GENERATED_INCLUDE_DIR}/sqlitex>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sqlite3
 )
-
-target_link_libraries(sqlitex PUBLIC sqlite3_amalgamation)
 
 # Expose guarded SQLite3 declarations privately when building sqlitex sources
 target_compile_definitions(sqlitex PRIVATE
@@ -242,11 +291,12 @@ target_compile_definitions(sqlitex PRIVATE
     SQLITE_ENABLE_PREUPDATE_HOOK
 )
 
-# Internal bcvfs include if available
+# Internal bcvfs support if available
 if(SQLITEX_BCVFS)
+    target_sources(sqlitex PRIVATE $<TARGET_OBJECTS:bcvfs_objects>)
     target_compile_definitions(sqlitex PUBLIC SQLITEX_HAS_BCVFS=1)
     target_include_directories(sqlitex PRIVATE ${BCVFS_INCLUDE_DIR})
-    target_link_libraries(sqlitex PUBLIC
+    target_link_libraries(sqlitex PRIVATE
         CURL::libcurl
         OpenSSL::SSL
         OpenSSL::Crypto
@@ -283,7 +333,7 @@ endif()
 # ============================================================================
 # bcVFS Daemon (blockcachevfsd)
 # ============================================================================
-if(SQLITEX_BCVFS)
+if(SQLITEX_BCVFS AND SQLITEX_BUILD_DAEMON)
     find_file(BCVFSD_SOURCE blockcachevfsd.c
         PATHS
             ${CMAKE_CURRENT_SOURCE_DIR}/third_party/bcvfs
@@ -292,12 +342,17 @@ if(SQLITEX_BCVFS)
         NO_DEFAULT_PATH
     )
     if(BCVFSD_SOURCE)
-        add_executable(blockcachevfsd ${BCVFSD_SOURCE})
+        add_executable(blockcachevfsd
+            ${BCVFSD_SOURCE}
+            $<TARGET_OBJECTS:bcvfs_objects>
+            $<TARGET_OBJECTS:sqlite3_amalgamation>
+        )
+        set_target_properties(blockcachevfsd PROPERTIES C_EXTENSIONS OFF)
         target_include_directories(blockcachevfsd PRIVATE
             ${BCVFS_INCLUDE_DIR}
+            ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sqlite3
         )
         target_link_libraries(blockcachevfsd PRIVATE
-            sqlitex
             CURL::libcurl
             OpenSSL::SSL
             OpenSSL::Crypto
@@ -307,11 +362,19 @@ if(SQLITEX_BCVFS)
             target_link_libraries(blockcachevfsd PRIVATE ${CMAKE_DL_LIBS})
         endif()
         if(WIN32)
-            target_link_libraries(blockcachevfsd PRIVATE ws2_32)
+            target_link_libraries(blockcachevfsd PRIVATE ws2_32 crypt32)
         endif()
-        install(TARGETS blockcachevfsd
-            RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-        )
+        if(MSVC)
+            target_compile_definitions(blockcachevfsd PRIVATE
+                _CRT_SECURE_NO_WARNINGS
+                _CRT_NONSTDC_NO_WARNINGS
+            )
+        endif()
+        if(SQLITEX_INSTALL)
+            install(TARGETS blockcachevfsd
+                RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+            )
+        endif()
         message(STATUS "Building bcvfs daemon: blockcachevfsd")
     else()
         message(WARNING "blockcachevfsd.c not found. Daemon will not be built.")
@@ -319,22 +382,58 @@ if(SQLITEX_BCVFS)
 endif()
 
 # ============================================================================
-# Install
+# Install & CMake package config
 # ============================================================================
-include(GNUInstallDirs)
-install(TARGETS sqlitex
-    EXPORT sqlitex-targets
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-)
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/sqlitex_export.h
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/sqlitex
-)
-install(DIRECTORY include/sqlitex
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-    FILES_MATCHING PATTERN "*.h"
-)
+if(SQLITEX_INSTALL)
+    install(TARGETS sqlitex
+        EXPORT sqlitex-targets
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
+    install(FILES "${SQLITEX_GENERATED_INCLUDE_DIR}/sqlitex/sqlitex_export.h"
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/sqlitex
+    )
+    install(DIRECTORY include/sqlitex
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+        FILES_MATCHING PATTERN "*.h"
+    )
+
+    install(EXPORT sqlitex-targets
+        FILE sqlitexTargets.cmake
+        NAMESPACE sqlitex::
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/sqlitex
+    )
+
+    if(SQLITEX_HAS_SESSION)
+        set(SQLITEX_HAS_SESSION_BOOL ON)
+    else()
+        set(SQLITEX_HAS_SESSION_BOOL OFF)
+    endif()
+    if(SQLITEX_BCVFS)
+        set(SQLITEX_HAS_BCVFS_BOOL ON)
+    else()
+        set(SQLITEX_HAS_BCVFS_BOOL OFF)
+    endif()
+
+    configure_package_config_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/cmake/sqlitexConfig.cmake.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/sqlitexConfig.cmake"
+        INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/sqlitex
+    )
+
+    write_basic_package_version_file(
+        "${CMAKE_CURRENT_BINARY_DIR}/sqlitexConfigVersion.cmake"
+        VERSION ${PROJECT_VERSION}
+        COMPATIBILITY SameMajorVersion
+    )
+
+    install(FILES
+        "${CMAKE_CURRENT_BINARY_DIR}/sqlitexConfig.cmake"
+        "${CMAKE_CURRENT_BINARY_DIR}/sqlitexConfigVersion.cmake"
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/sqlitex
+    )
+endif()
 
 # ============================================================================
 # Tests (Google Test via FetchContent)
@@ -349,6 +448,7 @@ if(SQLITEX_BUILD_TESTS)
     # Prevent GTest from installing itself alongside our project
     set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
     set(GTEST_HAS_ABSL OFF CACHE BOOL "" FORCE)
+    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(googletest)
 
     enable_testing()

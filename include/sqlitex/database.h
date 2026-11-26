@@ -899,14 +899,12 @@ class SQLITEX_EXPORT Database {
 
     private:
     struct HookState;
-    struct HookStateDeleter {
+    struct SQLITEX_EXPORT HookStateDeleter {
         void operator()(HookState* p) noexcept;
     };
 
-    struct Deleter {
-        void operator()(sqlite3* db) noexcept {
-            sqlite3_close_v2(db);
-        }
+    struct SQLITEX_EXPORT Deleter {
+        void operator()(sqlite3* db) noexcept;
     };
     // Declare hooks_ BEFORE db_holder_ so hooks remain alive while
     // sqlite3_close_v2() runs (e.g., for SQLITE_TRACE_CLOSE callbacks).

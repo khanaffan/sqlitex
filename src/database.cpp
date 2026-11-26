@@ -228,6 +228,10 @@ void Database::HookStateDeleter::operator()(HookState* p) noexcept {
     delete p;
 }
 
+void Database::Deleter::operator()(sqlite3* db) noexcept {
+    sqlite3_close_v2(db);
+}
+
 Database::HookState& Database::ensure_hooks() {
     if (!hooks_) {
         hooks_.reset(new HookState());

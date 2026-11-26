@@ -43,16 +43,28 @@ add_executable(sqlitex_tests ${TEST_SOURCES})
 
 target_link_libraries(sqlitex_tests
     PRIVATE
-        sqlitex
+        sqlitex::sqlitex
         GTest::gtest
         GTest::gtest_main
 )
 
+if(WIN32 AND SQLITEX_BCVFS)
+    target_link_libraries(sqlitex_tests PRIVATE ws2_32)
+endif()
+
 target_include_directories(sqlitex_tests
     PRIVATE
-        ${CMAKE_SOURCE_DIR}/include
-        ${CMAKE_BINARY_DIR}
+        ${PROJECT_SOURCE_DIR}/third_party/sqlite3
 )
+
+if(WIN32 AND BUILD_SHARED_LIBS)
+    add_custom_command(TARGET sqlitex_tests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_RUNTIME_DLLS:sqlitex_tests>
+            $<TARGET_FILE_DIR:sqlitex_tests>
+        COMMAND_EXPAND_LISTS
+    )
+endif()
 
 # Discover and register tests with CTest
 include(GoogleTest)

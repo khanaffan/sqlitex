@@ -1,0 +1,46 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "sqlitex",
+  "version": "0.1.0",
+  "description": "Modern C++23 wrapper for SQLite3 with sessions, virtual tables, FTS5, R-Tree, statement cache, and Cloud Backed SQLite (bcVFS)",
+  "homepage": "https://github.com/khanaffan/sqlitex",
+  "license": "MIT",
+  "supports": "!uwp",
+  "dependencies": [
+    {
+      "name": "vcpkg-cmake",
+      "host": true
+    },
+    {
+      "name": "vcpkg-cmake-config",
+      "host": true
+    }
+  ],
+  "default-features": [
+    "session"
+  ],
+  "features": {
+    "session": {
+      "description": "Enable SQLite Session, Changeset, Changegroup, and Rebaser support"
+    },
+    "bcvfs": {
+      "description": "Enable Cloud Backed SQLite (bcVFS) support",
+      "dependencies": [
+        "curl",
+        "openssl"
+      ]
+    },
+    "tools": {
+      "description": "Build the blockcachevfsd daemon executable",
+      "dependencies": [
+        {
+          "name": "sqlitex",
+          "default-features": false,
+          "features": [
+            "bcvfs"
+          ]
+        }
+      ]
+    }
+  }
+}

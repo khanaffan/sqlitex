@@ -1,5 +1,11 @@
 # sqlitex
 
+[![CI](https://github.com/khanaffan/sqlitex/actions/workflows/ci.yml/badge.svg)](https://github.com/khanaffan/sqlitex/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/khanaffan/sqlitex?sort=semver)](https://github.com/khanaffan/sqlitex/releases)
+[![C++23](https://img.shields.io/badge/C%2B%2B-23-blue.svg)](https://en.cppreference.com/w/cpp/23)
+[![SQLite](https://img.shields.io/badge/SQLite-3.54.1-003B57.svg)](https://sqlite.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A modern **C++23** RAII wrapper for **SQLite 3.54.1** and **CloudSQLite (bcVFS)**,
 with full coverage of the modern UTF-8 SQLite public API, the Session extension,
 built-in extensions (FTS5, R-Tree, CArray), scoped authorization policies, and
@@ -66,7 +72,7 @@ int main() {
 ## Requirements
 
 - **C++23** compiler (Clang 17+ / AppleClang 16+, GCC 13+, MSVC 2022 17.8+)
-- **CMake** 3.15+
+- **CMake** 3.21+
 - **libcurl** and **OpenSSL** (only when `SQLITEX_BCVFS=ON`)
 
 No system SQLite installation is needed.
@@ -102,10 +108,12 @@ cmake --build build --config Release
 | Option | Default | Description |
 |--------|---------|-------------|
 | `SQLITEX_SESSION` | `ON` | Enable Session / Changeset / Changegroup / Rebaser wrappers (`SQLITEX_HAS_SESSION`) |
-| `SQLITEX_BCVFS` | `ON` | Enable CloudSQLite / bcVFS wrappers and `blockcachevfsd` (`SQLITEX_HAS_BCVFS`) |
+| `SQLITEX_BCVFS` | `ON` | Enable CloudSQLite / bcVFS wrappers (`SQLITEX_HAS_BCVFS`) |
 | `SQLITEX_BCVFS_SOURCE_DIR` | *(bundled)* | Override path to CloudSQLite C sources (default: `third_party/bcvfs/`) |
-| `SQLITEX_BUILD_TESTS` | `ON` | Build Google Test suite (fetches Google Test v1.15.2 via `FetchContent`) |
-| `SQLITEX_BUILD_EXAMPLES` | `ON` | Build example programs |
+| `SQLITEX_BUILD_DAEMON` | `PROJECT_IS_TOP_LEVEL` | Build the `blockcachevfsd` daemon executable (requires `SQLITEX_BCVFS=ON`) |
+| `SQLITEX_BUILD_TESTS` | `PROJECT_IS_TOP_LEVEL` | Build Google Test suite (fetches Google Test v1.15.2 via `FetchContent`) |
+| `SQLITEX_BUILD_EXAMPLES` | `PROJECT_IS_TOP_LEVEL` | Build example programs |
+| `SQLITEX_INSTALL` | `PROJECT_IS_TOP_LEVEL` | Generate install rules and `sqlitexConfig.cmake` package files |
 | `SQLITEX_LINT` | `OFF` | Run `clang-tidy` during compilation |
 | `BUILD_SHARED_LIBS` | `OFF` | Build `sqlitex` as a shared library (DLL on Windows via `sqlitex_export.h`) |
 
@@ -113,7 +121,47 @@ When `SQLITEX_BCVFS=OFF`, the CloudSQLite headers remain includable and linkable
 as safe stubs that throw `sqlitex::Error` when invoked, so downstream code can
 compile without conditional `#ifdef` boilerplate unless desired.
 
+### Installing & Consuming with CMake / vcpkg
+
+```bash
+# Install locally (installs headers, library, and sqlitexConfig.cmake)
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DSQLITEX_BUILD_TESTS=OFF -DSQLITEX_BUILD_EXAMPLES=OFF
+cmake --build build --parallel
+cmake --install build --prefix /path/to/prefix
+```
+
+In a downstream `CMakeLists.txt`:
+
+```cmake
+find_package(sqlitex CONFIG REQUIRED)
+target_link_libraries(my_app PRIVATE sqlitex::sqlitex)
+```
+
+Or install via the included vcpkg overlay port (`ports/sqlitex/`):
+
+```bash
+# Default (includes session support, zero external dependencies)
+vcpkg install sqlitex --head --overlay-ports=./ports
+
+# With CloudSQLite / bcVFS (pulls curl + openssl) and blockcachevfsd daemon
+vcpkg install "sqlitex[bcvfs,tools]" --head --overlay-ports=./ports
+```
+
+Once a release tag (e.g. `v0.1.0`) is published, update `SHA512` in
+`ports/sqlitex/portfile.cmake` so `--head` is no longer needed.
+
 ### Running Tests, Examples & Formatting
+
+You can also use the included [`CMakePresets.json`](CMakePresets.json)
+(`default`, `release`, `minimal`, `shared`, `asan`):
+
+```bash
+cmake --preset release
+cmake --build --preset release --parallel
+ctest --preset release
+```
+
+Or run commands directly against a build directory:
 
 ```bash
 # Run unit & offline integration tests
@@ -121,6 +169,8 @@ ctest --test-dir build --output-on-failure
 
 # Run examples
 ./build/examples/basic_usage
+./build/examples/statement_cache
+./build/examples/scoped_policy
 ./build/examples/session_tracking
 ./build/examples/changeset_apply
 ./build/examples/changegroup_merge
@@ -169,11 +219,19 @@ include/sqlitex/
   bcv_module.h           Custom CloudSQLite storage modules (bcvmodule.h)
   detail/                <sqlite3.h>-free forward declarations & internal helpers
 src/                     Library implementation
+cmake/                   CMake package config template (sqlitexConfig.cmake.in)
+ports/sqlitex/           vcpkg overlay port (vcpkg.json, portfile.cmake, usage)
 third_party/
   sqlite3/               SQLite 3.54.1 amalgamation
-  bcvfs/                 CloudSQLite sources (check-in 997acb171b + local portability fixes)
+  bcvfs/                 CloudSQLite sources (check-in 843dff88c1 + local fixes)
 tests/                   Google Test suite
 examples/                Standalone example programs
+CMakePresets.json        Standard CMake configure/build/test presets
+CHANGELOG.md             Release history
+CONTRIBUTING.md          Contributor workflow & guidelines
+SECURITY.md              Vulnerability reporting policy
+THIRD_PARTY_NOTICES.md   Bundled & optional dependency attributions
+LICENSE                  MIT License
 ```
 
 ## API Guide
@@ -492,8 +550,8 @@ Semantics and limits:
 ### CloudSQLite / bcVFS
 
 Bundled from the [SQLite CloudSQLite](https://sqlite.org/cloudsqlite/)
-repository (check-in `997acb171b`, with local portability fixes for MSVC and
-older OpenSSL).
+repository (check-in `843dff88c1`, with local portability and synchronous
+dispatch fixes).
 
 #### Block Cache VFS & Prefetch (`bcvfs.h`, `prefetch.h`)
 
@@ -595,4 +653,6 @@ one `Database` per thread.
 
 ## License
 
-MIT
+`sqlitex` is licensed under the [MIT License](LICENSE). See
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for attributions covering
+bundled SQLite, CloudSQLite (bcVFS), and optional dependencies.

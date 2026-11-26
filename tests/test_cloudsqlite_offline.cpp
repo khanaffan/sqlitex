@@ -17,7 +17,13 @@
 #include <thread>
 #include <vector>
 
-#ifndef _WIN32
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#else
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -42,32 +48,60 @@ struct InMemoryStore {
     uint64_t next_etag = 1;
 };
 
-#ifndef _WIN32
+#ifdef _WIN32
+using SocketHandle = SOCKET;
+constexpr SocketHandle kInvalidSocket = INVALID_SOCKET;
+
+inline void close_socket(SocketHandle s) {
+    ::closesocket(s);
+}
+
+struct WinsockGuard {
+    WinsockGuard() {
+        WSADATA wsa{};
+        WSAStartup(MAKEWORD(2, 2), &wsa);
+    }
+    ~WinsockGuard() {
+        WSACleanup();
+    }
+};
+#else
+using SocketHandle = int;
+constexpr SocketHandle kInvalidSocket = -1;
+
+inline void close_socket(SocketHandle s) {
+    ::close(s);
+}
+#endif
+
 class LoopbackHttpServer {
     public:
     explicit LoopbackHttpServer(std::shared_ptr<InMemoryStore> store)
         : store_(std::move(store)) {
         listen_fd_ = ::socket(AF_INET, SOCK_STREAM, 0);
-        if (listen_fd_ < 0) {
+        if (listen_fd_ == kInvalidSocket) {
             throw std::runtime_error("socket() failed");
         }
         int opt = 1;
-        ::setsockopt(listen_fd_, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+        ::setsockopt(listen_fd_, SOL_SOCKET, SO_REUSEADDR,
+                     reinterpret_cast<const char*>(&opt), sizeof(opt));
 
         sockaddr_in addr{};
         addr.sin_family = AF_INET;
         addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
         addr.sin_port = 0;
         if (::bind(listen_fd_, reinterpret_cast<sockaddr*>(&addr),
-                   sizeof(addr)) < 0) {
-            ::close(listen_fd_);
+                   sizeof(addr)) != 0) {
+            close_socket(listen_fd_);
+            listen_fd_ = kInvalidSocket;
             throw std::runtime_error("bind() failed");
         }
         socklen_t len = sizeof(addr);
         ::getsockname(listen_fd_, reinterpret_cast<sockaddr*>(&addr), &len);
         port_ = ntohs(addr.sin_port);
-        if (::listen(listen_fd_, 32) < 0) {
-            ::close(listen_fd_);
+        if (::listen(listen_fd_, 32) != 0) {
+            close_socket(listen_fd_);
+            listen_fd_ = kInvalidSocket;
             throw std::runtime_error("listen() failed");
         }
         thread_ = std::thread([this] { serve(); });
@@ -75,10 +109,12 @@ class LoopbackHttpServer {
 
     ~LoopbackHttpServer() {
         stop_.store(true);
-        if (listen_fd_ >= 0) {
+        if (listen_fd_ != kInvalidSocket) {
+#ifndef _WIN32
             ::shutdown(listen_fd_, SHUT_RDWR);
-            ::close(listen_fd_);
-            listen_fd_ = -1;
+#endif
+            close_socket(listen_fd_);
+            listen_fd_ = kInvalidSocket;
         }
         if (thread_.joinable()) {
             thread_.join();
@@ -90,10 +126,14 @@ class LoopbackHttpServer {
     }
 
     private:
-    static bool send_all(int fd, const void* buf, size_t len) {
+    static bool send_all(SocketHandle fd, const void* buf, size_t len) {
         const auto* p = static_cast<const char*>(buf);
         while (len > 0) {
+#ifdef _WIN32
+            int n = ::send(fd, p, static_cast<int>(len), 0);
+#else
             ssize_t n = ::send(fd, p, len, 0);
+#endif
             if (n <= 0) {
                 return false;
             }
@@ -103,12 +143,16 @@ class LoopbackHttpServer {
         return true;
     }
 
-    void handle_client(int fd) {
+    void handle_client(SocketHandle fd) {
         std::string req;
         char buf[4096];
         size_t header_end = std::string::npos;
         while (header_end == std::string::npos) {
+#ifdef _WIN32
+            int n = ::recv(fd, buf, static_cast<int>(sizeof(buf)), 0);
+#else
             ssize_t n = ::recv(fd, buf, sizeof(buf), 0);
+#endif
             if (n <= 0) {
                 return;
             }
@@ -160,7 +204,11 @@ class LoopbackHttpServer {
             }
         }
         while (body.size() < content_len) {
+#ifdef _WIN32
+            int n = ::recv(fd, buf, static_cast<int>(sizeof(buf)), 0);
+#else
             ssize_t n = ::recv(fd, buf, sizeof(buf), 0);
+#endif
             if (n <= 0) {
                 break;
             }
@@ -244,25 +292,27 @@ class LoopbackHttpServer {
 
     void serve() {
         while (!stop_.load()) {
-            int cfd = ::accept(listen_fd_, nullptr, nullptr);
-            if (cfd < 0) {
+            SocketHandle cfd = ::accept(listen_fd_, nullptr, nullptr);
+            if (cfd == kInvalidSocket) {
                 if (stop_.load()) {
                     break;
                 }
                 continue;
             }
             handle_client(cfd);
-            ::close(cfd);
+            close_socket(cfd);
         }
     }
 
+#ifdef _WIN32
+    WinsockGuard wsa_guard_;
+#endif
     std::shared_ptr<InMemoryStore> store_;
-    int listen_fd_ = -1;
+    SocketHandle listen_fd_ = kInvalidSocket;
     uint16_t port_ = 0;
     std::atomic<bool> stop_{false};
     std::thread thread_;
 };
-#endif // !_WIN32
 
 class InMemoryContainer final : public BcvContainer {
     public:
@@ -434,11 +484,8 @@ std::filesystem::path make_temp_dir(const char* tag) {
 
 TEST(CloudSqliteOfflineTest, ModuleBcvClientBcvfsAndPrefetchEndToEnd) {
     auto store = std::make_shared<InMemoryStore>();
-    uint16_t port = 0;
-#ifndef _WIN32
     LoopbackHttpServer server(store);
-    port = server.port();
-#endif
+    uint16_t const port = server.port();
     std::string seen_param_val;
 
     register_bcv_module(
@@ -599,6 +646,84 @@ TEST(CloudSqliteOfflineTest, ModuleBcvClientBcvfsAndPrefetchEndToEnd) {
     // 4. Destroy container cleanly
     {
         BcvClient client("inmemtest", "testuser", "testauth", "bucket1");
+        client.destroy();
+    }
+
+    std::error_code ec;
+    std::filesystem::remove_all(work_dir, ec);
+}
+
+TEST(CloudSqliteOfflineTest, SyncModuleWithoutHttpRequests) {
+    auto store = std::make_shared<InMemoryStore>();
+    register_bcv_module(
+        "inmemsync",
+        [store](std::span<const std::pair<std::string_view, std::string_view>>,
+                std::string_view, std::string_view,
+                std::string_view container) -> std::unique_ptr<BcvContainer> {
+            return std::make_unique<InMemoryContainer>(
+                store, std::string(container), /*http_port=*/0);
+        });
+
+    auto work_dir = make_temp_dir("sync");
+    auto local_src = work_dir / "src.db";
+    auto local_dl = work_dir / "dl.db";
+    auto cache_dir = work_dir / "cache";
+    std::filesystem::create_directories(cache_dir);
+
+    {
+        Database db(local_src.string());
+        db.execute("CREATE TABLE kv(k INTEGER PRIMARY KEY, v TEXT);");
+        db.execute("INSERT INTO kv VALUES (1, 'sync-initial');");
+    }
+
+    {
+        BcvClient client("inmemsync", "u", "a", "syncbucket");
+        client.create(16, 65536);
+        client.upload(local_src.string(), "kv.db");
+    }
+
+    {
+        Bcvfs bcvfs(cache_dir.string(), "bcvfs-sync-test");
+        bcvfs.set_auth_callback([](std::string_view, std::string_view,
+                                   std::string_view, std::string& token) {
+            token = "a";
+            return true;
+        });
+        bcvfs.attach("inmemsync", "u", "syncbucket", "sb",
+                     BcvfsAttachFlag::None);
+
+        {
+            PrefetchHandle pf = bcvfs.prefetch("sb", "kv.db");
+            while (!pf.step(4, std::chrono::milliseconds(1000))) {
+            }
+            EXPECT_EQ(pf.status(), PrefetchStatus::Done);
+            EXPECT_EQ(pf.outstanding_requests(), 0);
+        }
+
+        {
+            Database db("/sb/kv.db", OpenFlag::ReadWrite | OpenFlag::Create,
+                        "bcvfs-sync-test");
+            db.execute("INSERT INTO kv VALUES (2, 'sync-updated');");
+        }
+
+        EXPECT_EQ(bcvfs.upload("sb"), SQLITE_OK);
+        EXPECT_TRUE(bcvfs.poll("sb"));
+
+        {
+            BcvClient verify("inmemsync", "u", "a", "syncbucket");
+            verify.download("kv.db", local_dl.string());
+            Database vdb(local_dl.string());
+            EXPECT_EQ(vdb.query_value<int64_t>("SELECT COUNT(*) FROM kv;"), 2);
+            EXPECT_EQ(
+                vdb.query_value<std::string>("SELECT v FROM kv WHERE k = 2;"),
+                "sync-updated");
+        }
+
+        bcvfs.detach("sb");
+    }
+
+    {
+        BcvClient client("inmemsync", "u", "a", "syncbucket");
         client.destroy();
     }
 

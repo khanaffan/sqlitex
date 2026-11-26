@@ -1,17 +1,20 @@
 #pragma once
 
-#include "sqlitex/detail/sqlite3_fwd.h"
+#include "sqlitex/sqlitex_export.h"
 
-#include <cstddef>
 #include <memory>
 
 namespace sqlitex {
 namespace detail {
 
+/// Release a buffer allocated by sqlite3_malloc / sqlite3_malloc64 through the
+/// library boundary so shared builds do not require consumers to link sqlite3.
+SQLITEX_EXPORT void free_sqlite_memory(void* p) noexcept;
+
 /// Custom deleter that calls sqlite3_free on a pointer.
 struct SqliteFreeDeleter {
     void operator()(void* p) const noexcept {
-        sqlite3_free(p);
+        free_sqlite_memory(p);
     }
 };
 

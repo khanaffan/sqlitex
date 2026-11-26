@@ -4810,6 +4810,9 @@ static void bcvfsUploadOneBlockTry(UploadCtx2 *pCtx, int *pbRetry){
       }
       bcvfsUploadRecordAdd(&rc, pCtx, aName, aNew, nName);
       memcpy(aName, aNew, nName);
+      if( rc==SQLITE_OK && pCtx->iBlk<pDb->nBlkOrig ){
+        bcvfsUploadDeleteBlockIf(pCtx, pCtx->iBlk);
+      }
       if( rc==SQLITE_OK && bSkip==0 ){
         char zFile[BCV_MAX_FSNAMEBYTES];
         bcvBlockidToText(NAMEBYTES(pCtx->pMan), aNew, zFile);
@@ -4824,9 +4827,6 @@ static void bcvfsUploadOneBlockTry(UploadCtx2 *pCtx, int *pbRetry){
         }
       }else{
         sqlite3_free(p);
-      }
-      if( rc==SQLITE_OK && pCtx->iBlk<pDb->nBlkOrig ){
-        bcvfsUploadDeleteBlockIf(pCtx, pCtx->iBlk);
       }
     }
   }
@@ -5649,10 +5649,11 @@ void bcvfsPrefetchRun(
         if( rc==SQLITE_OK ){
           pCtx->pEntry = pEntry;
           pCtx->p = p;
+          p->nOutstanding++;
           rc = bcvDispatchFetch(
               p->pDisp, p->pBcv, zName, 0, 0, (void*)pCtx, bcvfsPrefetchCb
           );
-          p->nOutstanding++;
+          if( rc!=SQLITE_OK ) p->nOutstanding--;
         }
       }
     }

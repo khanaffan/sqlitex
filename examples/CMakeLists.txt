@@ -1,22 +1,28 @@
-cmake_minimum_required(VERSION 3.15)
+function(sqlitex_add_example name source)
+    add_executable(${name} ${source})
+    target_link_libraries(${name} PRIVATE sqlitex::sqlitex)
+    if(WIN32 AND BUILD_SHARED_LIBS)
+        add_custom_command(TARGET ${name} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_RUNTIME_DLLS:${name}>
+                $<TARGET_FILE_DIR:${name}>
+            COMMAND_EXPAND_LISTS
+        )
+    endif()
+endfunction()
 
 # Example targets
-add_executable(basic_usage basic_usage.cpp)
-target_link_libraries(basic_usage PRIVATE sqlitex)
+sqlitex_add_example(basic_usage basic_usage.cpp)
+sqlitex_add_example(statement_cache statement_cache.cpp)
+sqlitex_add_example(scoped_policy scoped_policy.cpp)
 
 if(SQLITEX_HAS_SESSION)
-    add_executable(session_tracking session_tracking.cpp)
-    target_link_libraries(session_tracking PRIVATE sqlitex)
-
-    add_executable(changeset_apply changeset_apply.cpp)
-    target_link_libraries(changeset_apply PRIVATE sqlitex)
-
-    add_executable(changegroup_merge changegroup_merge.cpp)
-    target_link_libraries(changegroup_merge PRIVATE sqlitex)
+    sqlitex_add_example(session_tracking session_tracking.cpp)
+    sqlitex_add_example(changeset_apply changeset_apply.cpp)
+    sqlitex_add_example(changegroup_merge changegroup_merge.cpp)
 endif()
 
 if(SQLITEX_BCVFS)
     # bcvfs example compiles but requires cloud storage credentials to actually run
-    add_executable(bcvfs_basic bcvfs_basic.cpp)
-    target_link_libraries(bcvfs_basic PRIVATE sqlitex)
+    sqlitex_add_example(bcvfs_basic bcvfs_basic.cpp)
 endif()

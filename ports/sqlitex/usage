@@ -1,0 +1,4 @@
+sqlitex provides CMake targets:
+
+  find_package(sqlitex CONFIG REQUIRED)
+  target_link_libraries(main PRIVATE sqlitex::sqlitex)

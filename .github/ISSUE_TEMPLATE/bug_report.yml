@@ -1,0 +1,33 @@
+name: Bug report
+description: Report a bug or crash in sqlitex
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Clear and concise summary of what went wrong.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: Smallest C++ snippet or test case that reproduces the issue.
+      render: cpp
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, compiler & version, CMake options (`SQLITEX_SESSION`, `SQLITEX_BCVFS`, `BUILD_SHARED_LIBS`), and sqlitex version/commit.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Expected vs. actual behavior
+      description: Include error messages, sanitizer output, or stack traces if available.
+    validations:
+      required: true

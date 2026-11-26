@@ -158,9 +158,12 @@ TEST(SqliteGlobalTest, VfsFindAndAutoExtension) {
 }
 
 TEST(SqliteGlobalTest, LogAndRowidInViewQuery) {
-    // Querying rowid-in-view with -1 works after initialization
+    // sqlite3_config(ROWID_IN_VIEW) requires SQLite to be uninitialized; shut
+    // down first so the test works both under CTest and single-process runs.
+    shutdown();
     int val = config_rowid_in_view(-1);
     EXPECT_GE(val, 0);
+    initialize();
 
     // Calling log() is always safe (no-op if no logger installed)
     EXPECT_NO_THROW(log(0, "sqlitex test log message"));
