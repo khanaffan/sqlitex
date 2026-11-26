@@ -1,10 +1,18 @@
-# sqlitex
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg" />
+    <source media="(prefers-color-scheme: light)" srcset="docs/assets/logo-light.svg" />
+    <img alt="sqlitex — C++23 wrapper for SQLite 3.54.1 and CloudSQLite" src="docs/assets/logo-light.svg" width="400" />
+  </picture>
+</p>
 
-[![CI](https://github.com/khanaffan/sqlitex/actions/workflows/ci.yml/badge.svg)](https://github.com/khanaffan/sqlitex/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/khanaffan/sqlitex?sort=semver)](https://github.com/khanaffan/sqlitex/releases)
-[![C++23](https://img.shields.io/badge/C%2B%2B-23-blue.svg)](https://en.cppreference.com/w/cpp/23)
-[![SQLite](https://img.shields.io/badge/SQLite-3.54.1-003B57.svg)](https://sqlite.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+<p align="center">
+  <a href="https://github.com/khanaffan/sqlitex/actions/workflows/ci.yml"><img src="https://github.com/khanaffan/sqlitex/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://github.com/khanaffan/sqlitex/releases"><img src="https://img.shields.io/github/v/release/khanaffan/sqlitex?sort=semver" alt="Release" /></a>
+  <a href="https://en.cppreference.com/w/cpp/23"><img src="https://img.shields.io/badge/C%2B%2B-23-blue.svg" alt="C++23" /></a>
+  <a href="https://sqlite.org/"><img src="https://img.shields.io/badge/SQLite-3.54.1-003B57.svg" alt="SQLite 3.54.1" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT" /></a>
+</p>
 
 A modern **C++23** RAII wrapper for **SQLite 3.54.1** and **CloudSQLite (bcVFS)**,
 with full coverage of the modern UTF-8 SQLite public API, the Session extension,
@@ -220,6 +228,7 @@ include/sqlitex/
   detail/                <sqlite3.h>-free forward declarations & internal helpers
 src/                     Library implementation
 cmake/                   CMake package config template (sqlitexConfig.cmake.in)
+docs/assets/             README logo SVGs (light and dark mode)
 ports/sqlitex/           vcpkg overlay port (vcpkg.json, portfile.cmake, usage)
 third_party/
   sqlite3/               SQLite 3.54.1 amalgamation

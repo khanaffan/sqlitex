@@ -316,7 +316,7 @@ endif()
 find_package(Threads REQUIRED)
 target_link_libraries(sqlitex PUBLIC Threads::Threads)
 if(UNIX)
-    target_link_libraries(sqlitex PRIVATE ${CMAKE_DL_LIBS})
+    target_link_libraries(sqlitex PRIVATE ${CMAKE_DL_LIBS} m)
 endif()
 
 # Windows-specific
@@ -359,7 +359,7 @@ if(SQLITEX_BCVFS AND SQLITEX_BUILD_DAEMON)
             Threads::Threads
         )
         if(UNIX)
-            target_link_libraries(blockcachevfsd PRIVATE ${CMAKE_DL_LIBS})
+            target_link_libraries(blockcachevfsd PRIVATE ${CMAKE_DL_LIBS} m)
         endif()
         if(WIN32)
             target_link_libraries(blockcachevfsd PRIVATE ws2_32 crypt32)

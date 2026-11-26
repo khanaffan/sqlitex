@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 120" width="400" height="120" role="img" aria-label="sqlitex — C++23 wrapper for SQLite 3.54.1 and CloudSQLite">
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0B2540"/>
+      <stop offset="100%" stop-color="#0E4D7B"/>
+    </linearGradient>
+    <linearGradient id="topGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#7DD3FC"/>
+      <stop offset="100%" stop-color="#0EA5E9"/>
+    </linearGradient>
+    <linearGradient id="bodyGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#38BDF8" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#0284C7" stop-opacity="0.14"/>
+    </linearGradient>
+    <linearGradient id="hexGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0284C7"/>
+      <stop offset="100%" stop-color="#38BDF8"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Icon badge -->
+  <rect x="12" y="12" width="96" height="96" rx="22" fill="url(#bgGrad)"/>
+  <rect x="13" y="13" width="94" height="94" rx="21" fill="none" stroke="#38BDF8" stroke-opacity="0.32" stroke-width="1.5"/>
+
+  <!-- Subtle cloud accent top-right -->
+  <path d="M77 27.5a5 5 0 0 1 9.6-1.4 4 4 0 0 1 1.4 7.7H77.5a3.5 3.5 0 0 1-.5-6.3z" fill="#7DD3FC" fill-opacity="0.32"/>
+
+  <!-- Database cylinder -->
+  <path d="M31 41 v37 a22 7.5 0 0 0 44 0 v-37 z" fill="url(#bodyGrad)" stroke="#7DD3FC" stroke-width="2.4" stroke-linejoin="round"/>
+  <path d="M31 54 a22 7.5 0 0 0 44 0" fill="none" stroke="#7DD3FC" stroke-width="2.2" stroke-opacity="0.9"/>
+  <path d="M31 66 a22 7.5 0 0 0 44 0" fill="none" stroke="#7DD3FC" stroke-width="2.2" stroke-opacity="0.9"/>
+  <ellipse cx="53" cy="41" rx="22" ry="7.5" fill="url(#topGrad)" stroke="#BAE6FD" stroke-width="1.8"/>
+
+  <!-- C++ hexagon extension badge with crisp X -->
+  <polygon points="84,65 99,73.5 99,90.5 84,99 69,90.5 69,73.5" fill="url(#hexGrad)" stroke="#071B30" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M78 76 L90 88 M90 76 L78 88" stroke="#FFFFFF" stroke-width="3.4" stroke-linecap="round"/>
+
+  <!-- Wordmark -->
+  <text x="126" y="68" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="50" font-weight="700" letter-spacing="-1.5" fill="#0F172A">sqlite<tspan fill="#0284C7" font-weight="800">x</tspan></text>
+
+  <!-- Subtitle -->
+  <text x="128" y="95" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="14.5" font-weight="500" letter-spacing="0.2" fill="#475569">C++23 · SQLite 3.54.1 · CloudSQLite</text>
+</svg>
